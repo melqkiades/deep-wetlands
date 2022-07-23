@@ -1,6 +1,8 @@
 import time
 
 import numpy
+import pandas
+from PIL import Image
 
 
 def clip_matrix():
@@ -33,10 +35,68 @@ def count_pixels_ratio():
     print('Water area (km2):', water_area)
 
 
+def generate_single_sample_csv():
+
+    sample = {
+        # 'ids': 0,
+        'indices': 999,
+        'split': 'train',
+        'max_lat': 47.95622253,
+        'max_lon': 2.055749655,
+        'min_lat': 47.94274521,
+        'min_lon': 2.035627365,
+    }
+
+    samples = []
+
+    for counter in range(1572):
+        new_sample = sample.copy()
+        # index = counter
+        # new_sample['ids'] = index
+        samples.append(new_sample)
+
+    for counter in range(198):
+        new_sample = sample.copy()
+        # index = counter + 1572
+        # new_sample['ids'] = index
+        new_sample['split'] = 'val'
+        samples.append(new_sample)
+
+    for counter in range(196):
+        new_sample = sample.copy()
+        # index = counter + 1572 + 198
+        # new_sample['ids'] = index
+        new_sample['split'] = 'test'
+        samples.append(new_sample)
+
+    data_frame = pandas.DataFrame(samples)
+    data_frame.to_csv('/tmp/flacksjon.csv', index_label='ids')
+
+
+def transform_image_grayscale():
+
+    image_path = '/tmp/999.png'
+    img = Image.open(image_path).convert('L')
+    img.save('/tmp/greyscale.png')
+
+
+def resize_image():
+    size = (224, 224)
+    im = Image.open("/tmp/999.jpeg")
+    im.thumbnail(size, Image.ANTIALIAS)
+    im.save("/tmp/999-thumbnail.jpeg", "JPEG")
+
+    im = Image.open("/tmp/999.png")
+    im.thumbnail(size, Image.ANTIALIAS)
+    im.save("/tmp/999-thumbnail.png", "PNG")
+
+
 def main():
     # clip_matrix()
-    count_pixels_ratio()
-
+    # count_pixels_ratio()
+    # generate_single_sample_csv()
+    # transform_image_grayscale()
+    resize_image()
 
 start = time.time()
 main()
