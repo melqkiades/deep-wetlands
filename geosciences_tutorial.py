@@ -467,8 +467,8 @@ def load_sar_image_asf():
     img = dataset.read(1)
     img = img.astype(float)
 
-    # img_plt = plt.imshow(img, cmap='gray')
-    # plt.show()
+    print(type(img), img.shape, img.min(), img.max(), img.mean(), img.std())
+
 
     img[img == dataset.nodata] = np.nan  # Convert NoData to NaN
     # img = img[9900:10500, 6400:7100]
@@ -476,6 +476,9 @@ def load_sar_image_asf():
     # Alos Palsar coordinates
     img = img[9000:9800, 17500:18500]
     vmin, vmax = np.nanpercentile(img, (5, 95))  # 5-95% stretch
+
+    img_plt = plt.imshow(img, cmap='gray', vmin=vmin, vmax=vmax, origin='lower')
+    plt.show()
     # img_plt = plt.imshow(img, cmap='gray', vmin=vmin, vmax=vmax)
     # img_plt = plt.imshow(img, cmap='gray', vmin=vmin, vmax=vmax, origin='lower')
     ax = plt.gca()
@@ -639,9 +642,9 @@ def main():
     # # slice_window_test(img_dict)
     # # list_folders()
 
-    full_cycle()
+    # full_cycle()
     # load_sar_image_gee()
-    # load_sar_image_asf()
+    load_sar_image_asf()
     # load_sar_image_asf_alos_palsar()
 
 
