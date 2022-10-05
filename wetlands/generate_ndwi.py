@@ -1,9 +1,12 @@
 import time
 
+import numpy as np
 import pandas as pd
 import rasterio
+from PIL import Image
 from matplotlib import pyplot as plt
 import rasterio as rio
+from matplotlib.colors import ListedColormap
 from rasterio.plot import show
 import rasterio.mask
 from shapely.geometry import box
@@ -205,6 +208,20 @@ def export_ndwi_mask_data(tiles, tif_file):
             temp_tif = '/tmp/ndwi_mask/{}-ndwi_mask.tif'.format(name)
             with rasterio.open(temp_tif, "w", **out_meta) as dest:
                 dest.write(out_image)
+
+            # Save the cropped image as a temporary PNG file.
+            temp_png = '/tmp/ndwi_mask/{}-ndwi_mask.png'.format(name)
+
+            # Get the color map by name:
+            # cm = plt.get_cmap('viridis')
+            cm = plt.get_cmap(ListedColormap(["black", "blue"]))
+
+            # Apply the colormap like a function to any array:
+            colored_image = cm(out_image[0])
+
+            # Obtain a 4-channel image (R,G,B,A) in float [0, 1]
+            # But we want to convert to RGB in uint8 and save it:
+            Image.fromarray((colored_image[:, :, :3] * 255).astype(np.uint8)).save(temp_png)
 
 
 def visualize_image_from_file(tif_file):
