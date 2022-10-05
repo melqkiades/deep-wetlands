@@ -214,7 +214,7 @@ def export_ndwi_mask_data(tiles, tif_file):
 
             # Get the color map by name:
             # cm = plt.get_cmap('viridis')
-            cm = plt.get_cmap(ListedColormap(["black", "blue"]))
+            cm = plt.get_cmap(ListedColormap(["black", "cyan"]))
 
             # Apply the colormap like a function to any array:
             colored_image = cm(out_image[0])
