@@ -1,17 +1,13 @@
 import time
 
 import numpy as np
-import pandas as pd
 import rasterio
 from PIL import Image
 from matplotlib import pyplot as plt
 import rasterio as rio
 from matplotlib.colors import ListedColormap
-from rasterio.plot import show
 import rasterio.mask
-from shapely.geometry import box
 from tqdm import tqdm
-import geopandas as gpd
 
 from wetlands import utils, viz_utils, geo_utils
 
