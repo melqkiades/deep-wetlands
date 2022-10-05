@@ -13,21 +13,7 @@ from shapely.geometry import box
 from tqdm import tqdm
 import geopandas as gpd
 
-from wetlands import utils
-
-
-def visualize_sentinel2_image(geoboundary, shape_name, tif_file):
-
-    # Open image file using Rasterio
-    image = rio.open(tif_file)
-    boundary = geoboundary[geoboundary.shapeName == shape_name]
-
-    # Plot image and corresponding boundary
-    fig, ax = plt.subplots(figsize=(15, 15))
-    boundary.plot(facecolor="none", edgecolor='red', ax=ax)
-    show(image, ax=ax)
-    print(type(image))
-    plt.show()
+from wetlands import utils, viz_utils
 
 
 def generate_tiles(image_file, output_file, area_str, size=64):
@@ -86,34 +72,6 @@ def generate_tiles(image_file, output_file, area_str, size=64):
     return results
 
 
-def visualize_tiles(geoboundary, shape_name, tif_file):
-    # cwd = './drive/My Drive/Colab Notebooks/Land Use and Land Cover Classification/'
-    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/Land Use and Land Cover Classification'
-    output_file = cwd + '{}.geojson'.format(shape_name)
-    tiles = generate_tiles(tif_file, output_file, shape_name, size=64)
-    print('Data dimensions: {}'.format(tiles.shape))
-    tiles.head(3)
-
-    image = rio.open(tif_file)
-    fig, ax = plt.subplots(figsize=(15, 15))
-    tiles.plot(facecolor="none", edgecolor='red', ax=ax)
-    show(image, ax=ax)
-    plt.show()
-
-    image = rio.open(tif_file)
-    boundary = geoboundary[geoboundary.shapeName == shape_name]
-
-    # Geopandas sjoin function
-    tiles = gpd.sjoin(tiles, boundary, op='within')
-
-    fig, ax = plt.subplots(figsize=(15, 15))
-    tiles.plot(facecolor="none", edgecolor='red', ax=ax)
-    show(image, ax=ax)
-    plt.show()
-
-    return tiles
-
-
 def get_tiles(shape_name, tif_file, geoboundary):
     cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/Land Use and Land Cover Classification'
     output_file = cwd + '{}.geojson'.format(shape_name)
@@ -125,42 +83,6 @@ def get_tiles(shape_name, tif_file, geoboundary):
     tiles = gpd.sjoin(tiles, boundary, op='within')
 
     return tiles
-
-
-def show_crop(image, shape, title=''):
-    """Crops an image based on the polygon shape.
-    Reference: https://rasterio.readthedocs.io/en/latest/api/rasterio.mask.html#rasterio.mask.mask
-
-    Args:
-        image (str): Image file path (.tif)
-        shape (geometry): The tile with which to crop the image
-        title(str): Image title
-    """
-
-    with rio.open(image) as src:
-        out_image, out_transform = rio.mask.mask(src, shape, crop=True)
-        # Crop out black (zero) border
-        # _, x_nonzero, y_nonzero = np.nonzero(out_image)
-        # out_image = out_image[
-        #     :,
-        #     np.min(x_nonzero):np.max(x_nonzero),
-        #     np.min(y_nonzero):np.max(y_nonzero)
-        # ]
-        if out_image.shape[1] == 65:
-            out_image = out_image[:, :-1, :]
-        if out_image.shape[2] == 65:
-            out_image = out_image[:, :, 1:]
-
-        # Min-max scale the data to range [0, 1]
-        # out_image[out_image > maxValue] = maxValue
-        # out_image[out_image < minValue] = minValue
-        # out_image = (out_image - minValue)/(maxValue - minValue)
-
-        # Visualize image
-        show(out_image, title=title)
-        print(out_image.shape, type(out_image))
-        print(out_image)
-        plt.show()
 
 
 def export_ndwi_mask_data(tiles, tif_file):
@@ -224,18 +146,6 @@ def export_ndwi_mask_data(tiles, tif_file):
             Image.fromarray((colored_image[:, :, :3] * 255).astype(np.uint8)).save(temp_png)
 
 
-def visualize_image_from_file(tif_file):
-    # Open image file using Rasterio
-    image = rio.open(tif_file)
-
-    # Plot image and corresponding boundary
-    fig, ax = plt.subplots(figsize=(15, 15))
-    show(image, ax=ax)
-    print(image.count)
-    print(image.read(1).shape)
-    plt.show()
-
-
 def full_cycle():
     file_name = '/tmp/sweden.geojson'
     shape_name = 'Sala kommun'
@@ -256,18 +166,22 @@ def full_cycle_with_visualization():
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
     utils.show_region_boundaries(geoboundary, shape_name)
     tif_file = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/{}_new_image.tif'.format(shape_name)
-    visualize_sentinel2_image(geoboundary, shape_name, tif_file)
-    visualize_tiles(geoboundary, shape_name, tif_file)
+    viz_utils.visualize_sentinel2_image(geoboundary, shape_name, tif_file)
+    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/Land Use and Land Cover Classification'
+    output_file = cwd + '{}.geojson'.format(shape_name)
+    tiles = generate_tiles(tif_file, output_file, shape_name, size=64)
+    viz_utils.visualize_tiles(geoboundary, shape_name, tif_file, tiles)
     tiles = get_tiles(shape_name, tif_file, geoboundary)
-    show_crop(tif_file, [tiles.iloc[10]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
 
     export_ndwi_mask_data(tiles, tif_file)
     example_file = '/tmp/ndwi_mask/sala_kommun-1533-ndwi_mask.tif'
-    visualize_image_from_file(example_file)
+    viz_utils.visualize_image_from_file(example_file)
 
 
 def main():
-    full_cycle()
+    # full_cycle()
+    full_cycle_with_visualization()
 
 
 start = time.time()
