@@ -223,6 +223,54 @@ def evaluate(model, dataloader, criterion, device):
     return loss
 
 
+def save_model(model, model_dir, model_file):
+    # model_dir = cwd + "models/"
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
+    # model_file = model_dir + 'best_model_20220810.pth'
+    torch.save(model.state_dict(), model_file)
+    print('Model successfully saved to {}'.format(model_file))
+
+
+def load_model(model_file, device):
+    # model_dir = "./drive/My Drive/Colab Notebooks/Crop Field Delineation/models/"
+    # model_file = model_dir + 'best_model_20220810.pth'
+
+    loaded_model = Unet(in_channels=1)
+    loaded_model.to(device)
+    loaded_model.load_state_dict(torch.load(model_file, map_location=device))
+    loaded_model.eval()
+
+    print('Model file {} successfully loaded.'.format(model_file))
+
+    return loaded_model
+
+
+def evaluate_single_image(model, tiles_data, images_dir, device):
+    i = 120
+    model.eval()
+    index = tiles_data[tiles_data.split == 'test'].iloc[i]['id']
+    image_path = images_dir + str(index) + '-sar.tif'
+    image = rio.open(image_path).read()
+    print(image.shape)
+    plt.imshow(image[0], cmap='gray')
+    plt.show()
+    plt.clf()
+
+    # image = image.transpose((2, 1, 0))[None, :]
+    image = image[None, :]
+    print(image.shape)
+    image = torch.from_numpy(image.astype(np.float32)).to(device)
+    pred = model(image).cpu().detach().numpy()
+    # pred = pred.squeeze().transpose((1, 0))
+    pred = pred.squeeze()
+    # pred = (pred * 255.0).astype("uint8")
+    plt.imshow(pred)
+    plt.show()
+    plt.clf()
+
+
 def full_cycle():
     seed = 42
     random.seed(seed)
@@ -288,32 +336,34 @@ def full_cycle():
             val_loss.cpu().detach().numpy())
         )
 
-    i = 120
-    model.eval()
-    index = tiles_data[tiles_data.split == 'test' ].iloc[i]['id']
-    image_path = images_dir + str(index) + '-sar.tif'
-    image = rio.open(image_path).read()
-    print(image.shape)
-    plt.imshow(image[0], cmap='gray')
-    plt.show()
-    plt.clf()
+    model_dir = cwd + "models/"
+    model_file = model_dir + 'best_model_20220810.pth'
+    save_model(model, model_dir, model_file)
+
+    evaluate_single_image(model, tiles_data, images_dir, device)
 
 
-    # image = image.transpose((2, 1, 0))[None, :]
-    image = image[None, :]
-    print(image.shape)
-    image = torch.from_numpy(image.astype(np.float32)).to(device)
-    pred = model(image).cpu().detach().numpy()
-    # pred = pred.squeeze().transpose((1, 0))
-    pred = pred.squeeze()
-    # pred = (pred * 255.0).astype("uint8")
-    plt.imshow(pred)
-    plt.show()
-    plt.clf()
+def load_and_test():
+    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/'
+    model_dir = cwd + "models/"
+    model_file = model_dir + 'best_model_20220810.pth'
+    data_dir = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/'
+    images_dir = data_dir + 'sar/'
+    tiles_data_file = data_dir + 'tiles.csv'
+    tiles_data = pd.read_csv(tiles_data_file)
+
+    # Check is GPU is enabled
+    device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    print("Device: {}".format(device))
+
+    model = load_model(model_file, device)
+    evaluate_single_image(model, tiles_data, images_dir, device)
 
 
 def main():
-    full_cycle()
+    # full_cycle()
+    load_and_test()
 
 
 start = time.time()
