@@ -38,6 +38,19 @@ from rasterio.plot import show
 # print(sar_image.read(1).shape)
 
 
+def get_device():
+    # Check is GPU is enabled
+    device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    print("Device: {}".format(device))
+
+    # Get specific GPU model
+    if str(device) == "cuda:0":
+        print("GPU: {}".format(torch.cuda.get_device_name(0)))
+
+    return device
+
+
 class CFDDataset(Dataset):
     def __init__(self, dataset, images_dir, masks_dir):
         self.dataset = dataset
@@ -285,13 +298,7 @@ def full_cycle():
     tiles_data_file = data_dir + 'tiles.csv'
 
     # Check is GPU is enabled
-    device = torch.device(
-        "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    print("Device: {}".format(device))
-
-    # Get specific GPU model
-    if str(device) == "cuda:0":
-        print("GPU: {}".format(torch.cuda.get_device_name(0)))
+    device = get_device()
 
     tiles_data = pd.read_csv(tiles_data_file)
 
@@ -337,7 +344,7 @@ def full_cycle():
         )
 
     model_dir = cwd + "models/"
-    model_file = model_dir + 'best_model_20220810.pth'
+    model_file = model_dir + 'best_model_20221014.pth'
     save_model(model, model_dir, model_file)
 
     evaluate_single_image(model, tiles_data, images_dir, device)
@@ -346,24 +353,22 @@ def full_cycle():
 def load_and_test():
     cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/'
     model_dir = cwd + "models/"
-    model_file = model_dir + 'best_model_20220810.pth'
+    model_file = model_dir + 'best_model_20221014.pth'
     data_dir = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/'
     images_dir = data_dir + 'sar/'
     tiles_data_file = data_dir + 'tiles.csv'
     tiles_data = pd.read_csv(tiles_data_file)
 
     # Check is GPU is enabled
-    device = torch.device(
-        "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    print("Device: {}".format(device))
+    device = get_device()
 
     model = load_model(model_file, device)
     evaluate_single_image(model, tiles_data, images_dir, device)
 
 
 def main():
-    # full_cycle()
-    load_and_test()
+    full_cycle()
+    # load_and_test()
 
 
 start = time.time()
