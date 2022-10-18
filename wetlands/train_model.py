@@ -345,7 +345,7 @@ def load_and_test():
     tiles_data = pd.read_csv(tiles_data_file)
 
     # Check is GPU is enabled
-    device = get_device()
+    device = utils.get_device()
 
     model = load_model(model_file, device)
     evaluate_single_image(model, tiles_data, images_dir, device)
