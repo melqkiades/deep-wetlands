@@ -1,9 +1,32 @@
+import random
 import time
 
 import geojson
 import geopandas
+import numpy as np
 import requests
+import torch
 from matplotlib import pyplot as plt
+
+
+def plant_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+def get_device():
+    # Check is GPU is enabled
+    device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    print("Device: {}".format(device))
+
+    # Get specific GPU model
+    if str(device) == "cuda:0":
+        print("GPU: {}".format(torch.cuda.get_device_name(0)))
+
+    return device
 
 
 def download_country_boundaries(iso, adm, file_name):

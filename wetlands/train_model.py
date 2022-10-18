@@ -36,19 +36,7 @@ from rasterio.plot import show
 # show(mask, ax=ax[1])
 # # print(sar_image.count)
 # print(sar_image.read(1).shape)
-
-
-def get_device():
-    # Check is GPU is enabled
-    device = torch.device(
-        "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    print("Device: {}".format(device))
-
-    # Get specific GPU model
-    if str(device) == "cuda:0":
-        print("GPU: {}".format(torch.cuda.get_device_name(0)))
-
-    return device
+from wetlands import utils
 
 
 class CFDDataset(Dataset):
@@ -286,10 +274,7 @@ def evaluate_single_image(model, tiles_data, images_dir, device):
 
 def full_cycle():
     seed = 42
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    utils.plant_random_seed(seed)
 
     cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/'
     data_dir = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/'
@@ -298,7 +283,7 @@ def full_cycle():
     tiles_data_file = data_dir + 'tiles.csv'
 
     # Check is GPU is enabled
-    device = get_device()
+    device = utils.get_device()
 
     tiles_data = pd.read_csv(tiles_data_file)
 
