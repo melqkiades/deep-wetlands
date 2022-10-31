@@ -1,3 +1,4 @@
+import os
 import time
 
 import numpy
@@ -6,6 +7,7 @@ import rasterio
 import rasterio as rio
 import rasterio.mask
 from PIL import Image
+from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
@@ -13,6 +15,7 @@ from wetlands import utils, viz_utils, geo_utils
 
 
 def export_sar_data(tiles, tif_file):
+    export_folder = os.getenv('SAR_DIR')
 
     with rio.open(tif_file) as src:
         dataset_array = src.read()
@@ -56,12 +59,12 @@ def export_sar_data(tiles, tif_file):
             })
 
             # Save the cropped image as a temporary TIFF file.
-            temp_tif = '/tmp/sar/{}-sar.tif'.format(name)
+            temp_tif = export_folder + '/{}-sar.tif'.format(name)
             with rasterio.open(temp_tif, "w", **out_meta) as dest:
                 dest.write(out_image)
 
             # Save the cropped image as a temporary PNG file.
-            temp_png = '/tmp/sar/{}-sar.png'.format(name)
+            temp_png = export_folder + '/{}-sar.png'.format(name)
 
             # Get the color map by name:
             cm = plt.get_cmap('gray')
@@ -75,27 +78,30 @@ def export_sar_data(tiles, tif_file):
 
 
 def full_cycle():
-    file_name = '/tmp/sweden.geojson'
-    shape_name = 'Sala kommun'
-    tif_file = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/{}_sar_vv_single.tif'.format(shape_name)
+    file_name = os.getenv('GEOJSON_FILE')
+    shape_name = os.getenv('REGION_NAME')
+    tif_file = os.getenv('SAR_TIFF_FILE')
+    country_code = os.getenv('COUNTRY_CODE')
 
-    utils.download_country_boundaries('SWE', 'ADM2', file_name)
+    utils.download_country_boundaries(country_code, 'ADM2', file_name)
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
 
     tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
-    # export_sar_data(tiles, tif_file)
+    export_sar_data(tiles, tif_file)
 
 
 def full_cycle_with_visualization():
+    file_name = os.getenv('GEOJSON_FILE')
+    shape_name = os.getenv('REGION_NAME')
+    tif_file = os.getenv('NDWI_TIFF_FILE')
+    country_code = os.getenv('COUNTRY_CODE')
+    export_folder = os.getenv('SAR_DIR')
+    cwd = os.getenv('CWD_DIR')
 
-    file_name = '/tmp/sweden.geojson'
-    shape_name = 'Sala kommun'
-    utils.download_country_boundaries('SWE', 'ADM2', file_name)
+    utils.download_country_boundaries(country_code, 'ADM2', file_name)
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
     utils.show_region_boundaries(geoboundary, shape_name)
-    tif_file = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/{}_sar_vv_single.tif'.format(shape_name)
     viz_utils.visualize_sentinel2_image(geoboundary, shape_name, tif_file)
-    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/Land Use and Land Cover Classification'
     output_file = cwd + '{}.geojson'.format(shape_name)
     tiles = geo_utils.generate_tiles(tif_file, output_file, shape_name, size=64)
     viz_utils.visualize_tiles(geoboundary, shape_name, tif_file, tiles)
@@ -103,17 +109,19 @@ def full_cycle_with_visualization():
     viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
 
     export_sar_data(tiles, tif_file)
-    example_file = '/tmp/sar/sala_kommun-1533-sar.tif'
+    example_file = export_folder + '/sala_kommun-1533-sar.tif'
     viz_utils.visualize_image_from_file(example_file)
 
 
 def main():
-    # full_cycle()
-    full_cycle_with_visualization()
+    load_dotenv()
+
+    full_cycle()
+    # full_cycle_with_visualization()
 
 
-start = time.time()
-main()
-end = time.time()
-total_time = end - start
-print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+# start = time.time()
+# main()
+# end = time.time()
+# total_time = end - start
+# print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))

@@ -80,10 +80,10 @@ def export_ndwi_mask_data(tiles, tif_file):
 def full_cycle():
     file_name = os.getenv('GEOJSON_FILE')
     shape_name = os.getenv('REGION_NAME')
-    tif_file = os.getenv('TIFF_FILE')
-    print('TIFF file', tif_file)
+    tif_file = os.getenv('NDWI_TIFF_FILE')
+    country_code = os.getenv('COUNTRY_CODE')
 
-    utils.download_country_boundaries('SWE', 'ADM2', file_name)
+    utils.download_country_boundaries(country_code, 'ADM2', file_name)
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
 
     tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
@@ -95,12 +95,15 @@ def full_cycle_with_visualization():
     file_name = os.getenv('GEOJSON_FILE')
     shape_name = os.getenv('REGION_NAME')
     country_code = os.getenv('COUNTRY_CODE')
+    export_folder = os.getenv('NDWI_MASK_DIR')
+    cwd = os.getenv('CWD_DIR')
+
     utils.download_country_boundaries(country_code, 'ADM2', file_name)
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
     utils.show_region_boundaries(geoboundary, shape_name)
-    tif_file = os.getenv('TIFF_FILE')
+    tif_file = os.getenv('NDWI_TIFF_FILE')
     viz_utils.visualize_sentinel2_image(geoboundary, shape_name, tif_file)
-    cwd = os.getenv('CWD_DIR')
+
     output_file = cwd + '{}.geojson'.format(shape_name)
     tiles = geo_utils.generate_tiles(tif_file, output_file, shape_name, size=64)
     viz_utils.visualize_tiles(geoboundary, shape_name, tif_file, tiles)
@@ -108,7 +111,7 @@ def full_cycle_with_visualization():
     viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
 
     export_ndwi_mask_data(tiles, tif_file)
-    example_file = os.getenv('NDWI_MASK_DIR') + '/sala_kommun-1533-ndwi_mask.tif'
+    example_file = export_folder + '/sala_kommun-1533-ndwi_mask.tif'
     viz_utils.visualize_image_from_file(example_file)
 
 
