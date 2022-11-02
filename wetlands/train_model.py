@@ -3,6 +3,7 @@ import os
 import random
 import time
 import matplotlib.pyplot as plt
+from dotenv import load_dotenv
 from tqdm.notebook import tqdm
 import pandas as pd
 import numpy as np
@@ -273,22 +274,22 @@ def evaluate_single_image(model, tiles_data, images_dir, device):
 
 
 def full_cycle():
-    seed = 42
+    seed = int(os.getenv('RANDOM_SEED'))
     utils.plant_random_seed(seed)
 
-    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/'
-    data_dir = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/'
-    images_dir = data_dir + 'sar/'
-    masks_dir = data_dir + 'ndwi_mask/'
-    tiles_data_file = data_dir + 'tiles.csv'
+    cwd = os.getenv('TRAIN_CWD_DIR') + '/'
+    data_dir = os.getenv('TRAIN_DATA_DIR') + '/'
+    images_dir = os.getenv('SAR_DIR') + '/'
+    masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
+    tiles_data_file = os.getenv('TILES_FILE')
 
     # Check is GPU is enabled
     device = utils.get_device()
 
     tiles_data = pd.read_csv(tiles_data_file)
 
-    batch_size = 4
-    num_workers = 0
+    batch_size = int(os.getenv('BATCH_SIZE'))
+    num_workers = int(os.getenv('NUM_WORKERS'))
 
     dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir)
     train_batch = next(iter(dataloaders['train']))
@@ -299,8 +300,8 @@ def full_cycle():
     input, target = next(iter(dataloaders['train']))
     pred = model(input)
 
-    n_epochs = 15
-    learning_rate = 0.0001
+    n_epochs = int(os.getenv('EPOCHS'))
+    learning_rate = float(os.getenv('LEARNING_RATE'))
     criterion = DiceLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -328,20 +329,20 @@ def full_cycle():
             val_loss.cpu().detach().numpy())
         )
 
-    model_dir = cwd + "models/"
-    model_file = model_dir + 'best_model_20221014.pth'
+    model_dir = cwd + os.getenv('MODELS_DIR')
+    model_file = os.getenv('MODEL_FILE')
     save_model(model, model_dir, model_file)
 
     evaluate_single_image(model, tiles_data, images_dir, device)
 
 
 def load_and_test():
-    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/'
-    model_dir = cwd + "models/"
-    model_file = model_dir + 'best_model_20221014.pth'
-    data_dir = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/'
-    images_dir = data_dir + 'sar/'
-    tiles_data_file = data_dir + 'tiles.csv'
+    cwd = os.getenv('TRAIN_CWD_DIR') + '/'
+    model_dir = os.getenv('MODELS_DIR') + '/'
+    model_file = os.getenv('MODEL_FILE')
+    data_dir = os.getenv('TRAIN_DATA_DIR') + '/'
+    images_dir = os.getenv('SAR_DIR') + '/'
+    tiles_data_file = os.getenv('TILES_FILE')
     tiles_data = pd.read_csv(tiles_data_file)
 
     # Check is GPU is enabled
@@ -352,6 +353,8 @@ def load_and_test():
 
 
 def main():
+    load_dotenv()
+
     full_cycle()
     # load_and_test()
 
