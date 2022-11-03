@@ -195,6 +195,8 @@ class DiceLoss(nn.Module):
 
 def train(model, dataloader, criterion, optimizer, device):
     model.train(True)
+    losses = []
+    ious = []
 
     for input, target in tqdm(dataloader, total=len(dataloader)):
         input = input.to(device)
@@ -209,11 +211,20 @@ def train(model, dataloader, criterion, optimizer, device):
             loss.backward()
             optimizer.step()
 
-    return loss
+            iou = intersection_over_union(output, target)
+            losses.append(loss.cpu().detach().numpy())
+            ious.append(iou.cpu().detach().numpy())
+
+    print('Train loss', np.mean(losses), 'Train IOU', np.mean(ious))
+
+    return np.mean(losses)
 
 
 def evaluate(model, dataloader, criterion, device):
     model.eval()
+    losses = []
+    ious = []
+
     for input, target in tqdm(dataloader, total=len(dataloader)):
         input = input.to(device)
         target = target.to(device)
@@ -221,8 +232,13 @@ def evaluate(model, dataloader, criterion, device):
         with torch.set_grad_enabled(False):
             output = model(input)
             loss = criterion(output, target)
+            iou = intersection_over_union(output, target)
+            losses.append(loss.cpu().detach().numpy())
+            ious.append(iou.cpu().detach().numpy())
 
-    return loss
+    print('Val loss', np.mean(losses), 'Val IOU', np.mean(ious))
+
+    return np.mean(losses)
 
 
 def save_model(model, model_dir, model_file):
@@ -249,7 +265,7 @@ def load_model(model_file, device):
     return loaded_model
 
 
-def evaluate_single_image(model, tiles_data, images_dir, device):
+def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device):
     i = 120
     model.eval()
     index = tiles_data[tiles_data.split == 'test'].iloc[i]['id']
@@ -257,6 +273,14 @@ def evaluate_single_image(model, tiles_data, images_dir, device):
     image = rio.open(image_path).read()
     print(image.shape)
     plt.imshow(image[0], cmap='gray')
+    plt.show()
+    plt.clf()
+
+    ndwi_image_path = ndwi_masks_dir + str(index) + '-ndwi_mask.tif'
+    ndwi_image = rio.open(ndwi_image_path).read()
+    print(ndwi_image.shape)
+    print(ndwi_image_path)
+    plt.imshow(ndwi_image[0], cmap='spring')
     plt.show()
     plt.clf()
 
@@ -271,6 +295,9 @@ def evaluate_single_image(model, tiles_data, images_dir, device):
     plt.imshow(pred)
     plt.show()
     plt.clf()
+
+    iou = intersection_over_union(ndwi_image[0], pred[0])
+    print('IOU', iou)
 
 
 def full_cycle():
@@ -324,16 +351,24 @@ def full_cycle():
             criterion,
             device
         )
-        print('Train loss: {}, Val loss: {}'.format(
-            train_loss.cpu().detach().numpy(),
-            val_loss.cpu().detach().numpy())
-        )
+        print('Train loss: {}, Val loss: {}'.format(train_loss, val_loss))
 
     model_dir = cwd + os.getenv('MODELS_DIR')
     model_file = os.getenv('MODEL_FILE')
     save_model(model, model_dir, model_file)
 
-    evaluate_single_image(model, tiles_data, images_dir, device)
+    evaluate_single_image(model, tiles_data, images_dir, masks_dir, device)
+
+
+def intersection_over_union(y_pred, y_true):
+
+    smooth = 1e-6
+    y_pred = y_pred[:, 0].view(-1) > 0.5
+    y_true = y_true[:, 0].view(-1) > 0.5
+    intersection = (y_pred & y_true).sum() + smooth
+    union = (y_pred | y_true).sum() + smooth
+    iou = intersection / union
+    return iou
 
 
 def load_and_test():
@@ -342,6 +377,7 @@ def load_and_test():
     model_file = os.getenv('MODEL_FILE')
     data_dir = os.getenv('TRAIN_DATA_DIR') + '/'
     images_dir = os.getenv('SAR_DIR') + '/'
+    ndwi_masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
     tiles_data_file = os.getenv('TILES_FILE')
     tiles_data = pd.read_csv(tiles_data_file)
 
@@ -349,7 +385,7 @@ def load_and_test():
     device = utils.get_device()
 
     model = load_model(model_file, device)
-    evaluate_single_image(model, tiles_data, images_dir, device)
+    evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 
 def main():
@@ -359,8 +395,8 @@ def main():
     # load_and_test()
 
 
-start = time.time()
-main()
-end = time.time()
-total_time = end - start
-print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+# start = time.time()
+# main()
+# end = time.time()
+# total_time = end - start
+# print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
