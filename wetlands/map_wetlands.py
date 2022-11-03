@@ -1,8 +1,10 @@
+import os
 import time
 
 import numpy as np
 import rasterio as rio
 import torch
+from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 from rasterio.windows import Window
 import geopandas as gpd
@@ -130,17 +132,20 @@ def polygonize_raster_full(cwd, pred_file, shape_name, start_date):
 
 
 def full_cycle():
-    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/'
-    start_date = '2018-05-01'
-    end_date = '2018-05-31'
-    shape_name = 'Sala kommun'
+    load_dotenv()
+
+    cwd = os.getenv('TRAIN_CWD_DIR') + '/'
+    start_date = os.getenv('START_DATE')
+    end_date = os.getenv('END_DATE')
+    shape_name = os.getenv('REGION_NAME')
     n, step_size = 70, 64
     width, height = step_size * n, step_size * n
     tif_file = cwd + '{}-sar-{}.tif'.format(shape_name, start_date)
     image = load_image(tif_file)
     device = utils.get_device()
-    model_dir = cwd + "models/"
+    model_dir = os.getenv('MODELS_DIR') + '/'
     model_file = model_dir + 'best_model_20221014.pth'
+    # model_file = os.getenv('MODEL_FILE')
     pred_file = cwd + 'temp.tif'
     model = train_model.load_model(model_file, device)
     pred_mask = visualize_predicted_image(image, model, device)
@@ -157,4 +162,3 @@ main()
 end = time.time()
 total_time = end - start
 print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
-
