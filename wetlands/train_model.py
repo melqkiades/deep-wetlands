@@ -3,6 +3,7 @@ import os
 import random
 import time
 import matplotlib.pyplot as plt
+import wandb
 from dotenv import load_dotenv
 from tqdm.notebook import tqdm
 import pandas as pd
@@ -38,6 +39,7 @@ from rasterio.plot import show
 # # print(sar_image.count)
 # print(sar_image.read(1).shape)
 from wetlands import utils
+from wetlands.jaccard_similarity import calculate_intersection_over_union
 
 
 class CFDDataset(Dataset):
@@ -215,9 +217,16 @@ def train(model, dataloader, criterion, optimizer, device):
             losses.append(loss.cpu().detach().numpy())
             ious.append(iou.cpu().detach().numpy())
 
-    print('Train loss', np.mean(losses), 'Train IOU', np.mean(ious))
+    train_loss = np.mean(losses)
+    train_iou = np.mean(ious)
+    print('Train loss', train_loss, 'Train IOU', train_iou)
 
-    return np.mean(losses)
+    metrics = {
+        'train_loss': train_loss,
+        'train_iou': train_iou,
+    }
+
+    return metrics
 
 
 def evaluate(model, dataloader, criterion, device):
@@ -236,9 +245,16 @@ def evaluate(model, dataloader, criterion, device):
             losses.append(loss.cpu().detach().numpy())
             ious.append(iou.cpu().detach().numpy())
 
-    print('Val loss', np.mean(losses), 'Val IOU', np.mean(ious))
+    val_loss = np.mean(losses)
+    val_iou = np.mean(ious)
+    print('Val loss', val_loss, 'Val IOU', val_iou)
 
-    return np.mean(losses)
+    metrics = {
+        'val_loss': val_loss,
+        'val_iou': val_iou,
+    }
+
+    return metrics
 
 
 def save_model(model, model_dir, model_file):
@@ -265,42 +281,58 @@ def load_model(model_file, device):
     return loaded_model
 
 
-def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device):
+def plot_single_sar_image(model, tiles_data, images_dir, ndwi_masks_dir, device):
     i = 120
     model.eval()
     index = tiles_data[tiles_data.split == 'test'].iloc[i]['id']
     image_path = images_dir + str(index) + '-sar.tif'
     image = rio.open(image_path).read()
     print(image.shape)
-    plt.imshow(image[0], cmap='gray')
-    plt.show()
-    plt.clf()
+    # plt.imshow(image[0], cmap='gray')
+    # plt.show()
+    # plt.clf()
+
+
+def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device):
+    i = 120
+    model.eval()
+    index = tiles_data[tiles_data.split == 'test'].iloc[i]['id']
+    image_path = images_dir + str(index) + '-sar.tif'
+    sar_image = rio.open(image_path).read()
+    print(sar_image.shape)
+    # plt.imshow(image[0], cmap='gray')
+    # plt.show()
+    # plt.clf()
 
     ndwi_image_path = ndwi_masks_dir + str(index) + '-ndwi_mask.tif'
     ndwi_image = rio.open(ndwi_image_path).read()
     print(ndwi_image.shape)
     print(ndwi_image_path)
-    plt.imshow(ndwi_image[0], cmap='spring')
+    # plt.imshow(ndwi_image[0], cmap='spring')
+    # plt.show()
+    # plt.clf()
+
+    # sar_image = sar_image.transpose((2, 1, 0))[None, :]
+    batch_sar_image = sar_image[None, :]
+    print(batch_sar_image.shape)
+    batch_sar_image = torch.from_numpy(batch_sar_image.astype(np.float32)).to(device)
+    pred_image = model(batch_sar_image).cpu().detach().numpy()
+    # pred_image = pred_image.squeeze().transpose((1, 0))
+    pred_image = pred_image.squeeze()
+    # pred_image = (pred_image * 255.0).astype("uint8")
+    plt.imshow(pred_image)
     plt.show()
     plt.clf()
 
-    # image = image.transpose((2, 1, 0))[None, :]
-    image = image[None, :]
-    print(image.shape)
-    image = torch.from_numpy(image.astype(np.float32)).to(device)
-    pred = model(image).cpu().detach().numpy()
-    # pred = pred.squeeze().transpose((1, 0))
-    pred = pred.squeeze()
-    # pred = (pred * 255.0).astype("uint8")
-    plt.imshow(pred)
-    plt.show()
-    plt.clf()
-
-    iou = intersection_over_union(ndwi_image[0], pred[0])
+    iou = calculate_intersection_over_union(ndwi_image[0], pred_image[0])
     print('IOU', iou)
+
+    return sar_image, pred_image, ndwi_image
 
 
 def full_cycle():
+    wandb.init(project="test-project", entity="deep-wetlands")
+
     seed = int(os.getenv('RANDOM_SEED'))
     utils.plant_random_seed(seed)
 
@@ -332,26 +364,65 @@ def full_cycle():
     criterion = DiceLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    wandb.config = {
+        "learning_rate": learning_rate,
+        "epochs": n_epochs,
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+        "random_seed": seed,
+    }
 
     model.to(device)
     for epoch in range(1, n_epochs + 1):
         print("\nEpoch {}/{}".format(epoch, n_epochs))
         print("-" * 10)
 
-        train_loss = train(
+        train_metrics = train(
             model,
             dataloaders["train"],
             criterion,
             optimizer,
             device
         )
-        val_loss = evaluate(
+        val_metrics = evaluate(
             model,
             dataloaders['test'],
             criterion,
             device
         )
-        print('Train loss: {}, Val loss: {}'.format(train_loss, val_loss))
+
+        # mask_data = np.array([[1, 2, 2, ..., 2, 2, 1], ...])
+        class_labels = {
+            0: "land",
+            1: "water",
+        }
+
+        sar_image, predicted_image, ndwi_image = evaluate_single_image(
+            model, tiles_data, images_dir, masks_dir, device)
+        int_sar_image = np.array(predicted_image > 0.5).astype(int)
+        ndwi_image = ndwi_image[0]
+        int_ndwi_image = np.array(ndwi_image > 0.5).astype(int)
+        mask_img = wandb.Image(sar_image, masks={
+            "predictions": {
+                "mask_data": int_sar_image,
+                "class_labels": class_labels
+            },
+            "ndwi": {
+                "mask_data": int_ndwi_image,
+                "class_labels": class_labels
+            }
+        }, caption=["Water detection", "fd", "fds"])
+
+        predicted_image = wandb.Image(predicted_image, caption="Predicted image")
+        # mask_img = wandb.Image(mask_img, caption="Mask image")
+
+        metrics = {
+            **train_metrics, **val_metrics, 'prediction': predicted_image,
+            'mask': mask_img
+        }
+
+        print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
+        wandb.log(metrics)
 
     model_dir = cwd + os.getenv('MODELS_DIR')
     model_file = os.getenv('MODEL_FILE')
