@@ -144,9 +144,10 @@ def full_cycle():
     image = load_image(tif_file)
     device = utils.get_device()
     model_dir = os.getenv('MODELS_DIR') + '/'
-    model_file = model_dir + 'best_model_20221014.pth'
-    # model_file = os.getenv('MODEL_FILE')
-    pred_file = cwd + 'temp.tif'
+    # model_file = model_dir + 'best_model_20221014.pth'
+    model_file = os.getenv('MODEL_FILE')
+    # pred_file = cwd + 'temp.tif'
+    pred_file = os.getenv('PREDICTIONS_FILE')
     model = train_model.load_model(model_file, device)
     pred_mask = visualize_predicted_image(image, model, device)
     generate_raster_image(pred_mask, pred_file, cwd, tif_file, width, height)

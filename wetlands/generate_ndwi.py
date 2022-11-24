@@ -42,6 +42,9 @@ def export_ndwi_mask_data(tiles, tif_file):
             if out_image.shape[2] == 65:
                 out_image = out_image[:, :, 1:]
 
+            if out_image.shape[1] != 64 or out_image.shape[2] != 64:
+                continue
+
             # Min-max scale the data to range [0, 1]
             out_image[out_image > maxValue] = maxValue
             out_image[out_image < minValue] = minValue
@@ -87,7 +90,13 @@ def full_cycle():
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
 
     tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
+    # print(tiles.columns.values)
     export_ndwi_mask_data(tiles, tif_file)
+    # tiles['split'] = 'train'
+    # num_rows = len(tiles)
+    # test_rows = int(num_rows * 0.2)
+    # tiles.loc[tiles.tail(test_rows).index, 'split'] = 'test'
+    # tiles.to_csv('/tmp/my_tiles.csv', columns=['id', 'split'], index_label='index')
 
 
 def full_cycle_with_visualization():
@@ -97,6 +106,7 @@ def full_cycle_with_visualization():
     country_code = os.getenv('COUNTRY_CODE')
     export_folder = os.getenv('NDWI_MASK_DIR')
     cwd = os.getenv('CWD_DIR')
+    print('Shape name', shape_name)
 
     utils.download_country_boundaries(country_code, 'ADM2', file_name)
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
@@ -108,11 +118,30 @@ def full_cycle_with_visualization():
     tiles = geo_utils.generate_tiles(tif_file, output_file, shape_name, size=64)
     viz_utils.visualize_tiles(geoboundary, shape_name, tif_file, tiles)
     tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
-    viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[20]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[30]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[40]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[50]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[60]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[70]['geometry']])
+    # viz_utils.show_crop(tif_file, [tiles.iloc[80]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[0]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[1]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[2]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[3]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[4]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[5]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[6]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[7]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[8]['geometry']])
+    viz_utils.show_crop(tif_file, [tiles.iloc[9]['geometry']])
 
-    export_ndwi_mask_data(tiles, tif_file)
-    example_file = export_folder + '/sala_kommun-1533-ndwi_mask.tif'
-    viz_utils.visualize_image_from_file(example_file)
+    print(tiles.count())
+
+    # export_ndwi_mask_data(tiles, tif_file)
+    # example_file = export_folder + '/sala_kommun-1533-ndwi_mask.tif'
+    # viz_utils.visualize_image_from_file(example_file)
 
 
 def main():

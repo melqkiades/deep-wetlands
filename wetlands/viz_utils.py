@@ -1,4 +1,3 @@
-
 import rasterio as rio
 from matplotlib import pyplot as plt
 from rasterio.plot import show

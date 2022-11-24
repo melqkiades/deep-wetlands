@@ -3,6 +3,7 @@ import time
 
 import numpy
 import numpy as np
+import pandas
 import rasterio
 import rasterio as rio
 import rasterio.mask
@@ -21,6 +22,8 @@ def export_sar_data(tiles, tif_file):
         dataset_array = src.read()
         minValue = numpy.nanpercentile(dataset_array, 1)
         maxValue = numpy.nanpercentile(dataset_array, 99)
+
+    exported_files = []
 
     for index in tqdm(range(len(tiles)), total=len(tiles)):
 
@@ -42,6 +45,9 @@ def export_sar_data(tiles, tif_file):
                 out_image = out_image[:, :-1, :]
             if out_image.shape[2] == 65:
                 out_image = out_image[:, :, 1:]
+
+            if out_image.shape[1] != 64 or out_image.shape[2] != 64:
+                continue
 
             # Min-max scale the data to range [0, 1]
             out_image[out_image > maxValue] = maxValue
@@ -76,6 +82,10 @@ def export_sar_data(tiles, tif_file):
             # But we want to convert to RGB in uint8 and save it:
             Image.fromarray((colored_image[:, :, :3] * 255).astype(np.uint8)).save(temp_png)
 
+            exported_files.append({'index': tiles.index.values[index], 'id': name})
+
+    return exported_files
+
 
 def full_cycle():
     file_name = os.getenv('GEOJSON_FILE')
@@ -87,13 +97,22 @@ def full_cycle():
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
 
     tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
-    export_sar_data(tiles, tif_file)
+    # export_sar_data(tiles, tif_file)
+    tiles_list = export_sar_data(tiles, tif_file)
+
+    tiles_dataframe = pandas.DataFrame(tiles_list)
+    tiles_dataframe.set_index('index', inplace=True)
+    tiles_dataframe['split'] = 'test'
+    num_rows = len(tiles_dataframe)
+    test_rows = int(num_rows * 0.8)
+    tiles_dataframe.loc[tiles_dataframe.head(test_rows).index, 'split'] = 'train'
+    tiles_dataframe.to_csv('/tmp/my_sar_tiles.csv', columns=['id', 'split'], index_label='index')
 
 
 def full_cycle_with_visualization():
     file_name = os.getenv('GEOJSON_FILE')
     shape_name = os.getenv('REGION_NAME')
-    tif_file = os.getenv('NDWI_TIFF_FILE')
+    sar_file = os.getenv('SAR_TIFF_FILE')
     country_code = os.getenv('COUNTRY_CODE')
     export_folder = os.getenv('SAR_DIR')
     cwd = os.getenv('CWD_DIR')
@@ -101,14 +120,14 @@ def full_cycle_with_visualization():
     utils.download_country_boundaries(country_code, 'ADM2', file_name)
     geoboundary = utils.get_region_boundaries(shape_name, file_name)
     utils.show_region_boundaries(geoboundary, shape_name)
-    viz_utils.visualize_sentinel2_image(geoboundary, shape_name, tif_file)
+    viz_utils.visualize_sentinel2_image(geoboundary, shape_name, sar_file)
     output_file = cwd + '{}.geojson'.format(shape_name)
-    tiles = geo_utils.generate_tiles(tif_file, output_file, shape_name, size=64)
-    viz_utils.visualize_tiles(geoboundary, shape_name, tif_file, tiles)
-    tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
-    viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
+    tiles = geo_utils.generate_tiles(sar_file, output_file, shape_name, size=64)
+    viz_utils.visualize_tiles(geoboundary, shape_name, sar_file, tiles)
+    tiles = geo_utils.get_tiles(shape_name, sar_file, geoboundary)
+    viz_utils.show_crop(sar_file, [tiles.iloc[10]['geometry']])
 
-    export_sar_data(tiles, tif_file)
+    export_sar_data(tiles, sar_file)
     example_file = export_folder + '/sala_kommun-1533-sar.tif'
     viz_utils.visualize_image_from_file(example_file)
 

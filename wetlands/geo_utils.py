@@ -53,7 +53,9 @@ def generate_tiles(image_file, output_file, area_str, size=64):
     # Cast dictionary as a GeoPandas DataFrame
     results = gpd.GeoDataFrame(pd.DataFrame(geo_dict))
     # Set CRS to EPSG:4326
-    results.crs = {'init': 'epsg:4326'}
+    # results.crs = {'init': 'epsg:4326'}
+    results.set_crs(epsg=4326, inplace=True)
+    # results.set_crs(epsg=32633, inplace=True)
     # Save file as GeoJSON
     results.to_file(output_file, driver="GeoJSON")
 
@@ -70,6 +72,7 @@ def get_tiles(shape_name, tif_file, geoboundary):
     boundary = geoboundary[geoboundary.shapeName == shape_name]
 
     # Geopandas sjoin function
-    tiles = gpd.sjoin(tiles, boundary, op='within')
+    # tiles = gpd.sjoin(tiles, boundary, op='within')
+    tiles = gpd.sjoin(tiles, boundary, predicate='within')
 
     return tiles
