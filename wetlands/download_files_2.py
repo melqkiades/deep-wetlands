@@ -1,36 +1,12 @@
+import os
 import time
 
-# Standard imports
-from tqdm.notebook import tqdm
+from dotenv import load_dotenv
 import requests
-import json
-
-import pandas as pd
-import numpy as np
-from PIL import Image
-
-# Geospatial processing packages
 import geopandas as gpd
 import geojson
-
-import shapely
-import rasterio as rio
-from rasterio.plot import show
-import rasterio.mask
-from shapely.geometry import box
-
-# Mapping and plotting libraries
-import matplotlib.pyplot as plt
-import matplotlib.colors as cl
 import ee
 import eeconvert as eec
-import geemap
-import geemap.eefolium as emap
-import folium
-
-# Deep learning libraries
-import torch
-from torchvision import datasets, models, transforms
 
 
 def download_ndwi():
@@ -51,16 +27,23 @@ def download_ndwi():
     geoboundary = gpd.read_file(filename)
     print("Data dimensions: {}".format(geoboundary.shape))
 
-    shape_name = 'Sala kommun'
+    shape_name = os.getenv('REGION_NAME')
 
     ee.Authenticate()
     ee.Initialize()
 
     product = 'COPERNICUS/S2'
+
+    # Dates for Sala kommun
+    # min_date = '2018-01-01'
+    # max_date = '2020-01-01'
+
+    # Dates for Lindesberg kommun
     min_date = '2018-01-01'
     max_date = '2020-01-01'
-    range_min = 0
-    range_max = 2000
+
+    # min_date = os.getenv('START_DATE')
+    # max_date = os.getenv('END_DATE')
     cloud_pct = 10
 
     # Get the shape geometry for Sala kommun
@@ -98,7 +81,7 @@ def download_ndwi():
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
     # task = export_image(image, shape_name + '_all_bands_2', region, folder)
-    newImageTask = export_image(new_image, shape_name + '_new_image_4', region, folder)
+    newImageTask = export_image(new_image, shape_name + '_new_image_5', region, folder)
 
 
 def export_image(image, filename, region, folder):
@@ -150,17 +133,23 @@ def download_sar():
     geoboundary = gpd.read_file(filename)
     print("Data dimensions: {}".format(geoboundary.shape))
 
-    shape_name = 'Sala kommun'
+    shape_name = os.getenv('REGION_NAME')
 
     ee.Authenticate()
     ee.Initialize()
 
     product = 'COPERNICUS/S1_GRD'
+
+    # Dates for Sala kommun
+    # min_date = '2018-01-01'
+    # max_date = '2020-01-01'
+
+    # Dates for Lindesberg kommun
     min_date = '2018-01-01'
-    max_date = '2020-01-01'
-    range_min = 0
-    range_max = 2000
-    cloud_pct = 10
+    max_date = '2019-01-01'
+
+    # min_date = os.getenv('START_DATE')
+    # max_date = os.getenv('END_DATE')
 
     # Get the shape geometry for Sala kommun
     region = geoboundary.loc[geoboundary.shapeName == shape_name]
@@ -202,13 +191,14 @@ def download_sar():
     sarImage = sarImage.float()
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
-    task = export_image(sarImage, shape_name + '_sar_vv_single_4', region, folder)
+    task = export_image(sarImage, shape_name + '_sar_vv_single_5', region, folder)
 
 
 def main():
+    load_dotenv()
 
-    # download_ndwi()
-    download_sar()
+    download_ndwi()
+    # download_sar()
 
 
 start = time.time()
