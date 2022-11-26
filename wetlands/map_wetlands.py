@@ -28,9 +28,24 @@ def load_image(dir_path):
 #         image_bands.append(normalize(array))
 
 #     image = np.dstack(image_bands)
-    image = rio.open(dir_path).read(1)
-    image = normalize(image)
-    return image
+#     image = rio.open(dir_path).read(1)
+#     image = normalize(image)
+#     return image
+
+    tiff_image = rio.open(dir_path)
+    numpy_image = tiff_image.read(1)
+
+    min_value = np.nanpercentile(numpy_image, 1)
+    max_value = np.nanpercentile(numpy_image, 99)
+
+    numpy_image[numpy_image > max_value] = max_value
+    numpy_image[numpy_image < min_value] = min_value
+
+    array_min, array_max = np.nanmin(numpy_image), np.nanmax(numpy_image)
+    normalized_array = (numpy_image - array_min) / (array_max - array_min)
+    normalized_array[np.isnan(normalized_array)] = 0
+
+    return normalized_array
 
 
 def visualize_sentinel1(cwd, shape_name, start_date):
@@ -140,7 +155,8 @@ def full_cycle():
     shape_name = os.getenv('REGION_NAME')
     n, step_size = 70, 64
     width, height = step_size * n, step_size * n
-    tif_file = cwd + '{}-sar-{}.tif'.format(shape_name, start_date)
+    # tif_file = cwd + '{}-sar-{}.tif'.format(shape_name, start_date)
+    tif_file = os.getenv('SAR_TIFF_FILE')
     image = load_image(tif_file)
     device = utils.get_device()
     model_dir = os.getenv('MODELS_DIR') + '/'

@@ -3,6 +3,7 @@ import time
 import numpy
 import pandas
 from PIL import Image
+import rasterio as rio
 
 
 def clip_matrix():
@@ -91,12 +92,69 @@ def resize_image():
     im.save("/tmp/999-thumbnail.png", "PNG")
 
 
+def parallel_array_replace():
+
+    arr1 = numpy.array([3, 3, 3, numpy.nan, numpy.nan, numpy.nan])
+    arr2 = numpy.array([numpy.nan, 5, 5, numpy.nan, 5, numpy.nan])
+
+    arr1 = numpy.where(numpy.isnan(arr2), arr2, arr1)
+    arr2 = numpy.where(numpy.isnan(arr1), arr1, arr2)
+    # arr1 = numpy.where(arr2 == 0, arr2, arr1)
+    # arr2 = numpy.where(arr1 == 0, arr1, arr2)
+
+    print(arr1)
+    print(arr2)
+
+
+def count_class_labels():
+
+    arr = numpy.array([
+        [0, 0, 1],
+        [0, 1, 1],
+        [0, 0, 0],
+    ])
+
+    unique, counts = numpy.unique(arr, return_counts=True)
+    count_dict = dict(zip(unique, counts))
+    print(count_dict)
+
+
+def min_max_scale_nan():
+    arr = numpy.array([1, 2, 3, numpy.nan, 4])
+
+    array_min, array_max = numpy.nanmin(arr), numpy.nanmax(arr)
+    normalized_array = (arr - array_min)/(array_max - array_min)
+    print(normalized_array)
+
+
+def normalize_tiff():
+    file_path = '/tmp/Sala kommun-sar-2018-05-01.tif'
+    tiff_image = rio.open(file_path)
+    numpy_image = tiff_image.read(1)
+    print(numpy_image.shape, type(numpy_image), numpy_image.dtype)
+    print(numpy_image.min(), numpy_image.max(), numpy_image.mean(), numpy.median(numpy_image))
+    array_min, array_max = numpy.nanmin(numpy_image), numpy.nanmax(numpy_image)
+    normalized_array = (numpy_image - array_min) / (array_max - array_min)
+    normalized_array[numpy.isnan(normalized_array)] = 0
+    # normalized_array = (normalized_array * 255).astype(numpy.uint8)
+    print(normalized_array.shape, type(normalized_array), normalized_array.dtype)
+    print(normalized_array.min(), normalized_array.max(), normalized_array.mean(), numpy.median(normalized_array))
+
+    print('Are arrays equal?', (numpy_image == normalized_array).all())
+
+
+
+
 def main():
     # clip_matrix()
     # count_pixels_ratio()
     # generate_single_sample_csv()
     # transform_image_grayscale()
-    resize_image()
+    # resize_image()
+    # parallel_array_replace()
+    # count_class_labels()
+    # min_max_scale_nan()
+    normalize_tiff()
 
 start = time.time()
 main()
