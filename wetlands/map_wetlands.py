@@ -60,8 +60,12 @@ def visualize_sentinel1(cwd, shape_name, start_date):
 
 
 def visualize_predicted_image(image, model, device):
-    n, step_size = 70, 64
-    width, height = step_size * n, step_size * n
+
+    # n, step_size = 7, 64
+    # width, height = step_size * n, step_size * n
+    step_size = 64
+    width = image.shape[0] - image.shape[0] % step_size
+    height = image.shape[1] - image.shape[1] % step_size
     pred_mask = np.zeros(tuple((width, height)))
 
     for h in range(0, height, step_size):
@@ -93,9 +97,11 @@ def visualize_predicted_image(image, model, device):
     return pred_mask
 
 
-def generate_raster(image, src_tif, dest_file, width, height):
+def generate_raster(image, src_tif, dest_file, step_size):
     with rio.open(src_tif) as src:
         # Create a Window and calculate the transform from the source dataset
+        width = src.width - src.width % step_size
+        height = src.height - src.height % step_size
         window = Window(0, 0, width, height)
         transform = src.window_transform(window)
 
@@ -105,14 +111,15 @@ def generate_raster(image, src_tif, dest_file, width, height):
             "height": height,
             "width": width,
             "count": 1,
-            "transform": src.transform
+            # "transform": src.transform
+            "transform": transform
         })
         with rio.open(dest_file, "w", **out_meta) as dest:
             dest.write(image.astype(rio.uint8), 1)
 
 
-def generate_raster_image(pred_mask, pred_file, cwd, tif_file, width, height):
-    generate_raster(pred_mask, tif_file, pred_file, width, height)
+def generate_raster_image(pred_mask, pred_file, tif_file, step_size):
+    generate_raster(pred_mask, tif_file, pred_file, step_size)
     mask = rio.open(pred_file)
 
     # Plot image and corresponding boundary
@@ -153,8 +160,9 @@ def full_cycle():
     start_date = os.getenv('START_DATE')
     end_date = os.getenv('END_DATE')
     shape_name = os.getenv('REGION_NAME')
-    n, step_size = 70, 64
-    width, height = step_size * n, step_size * n
+    # n, step_size = 70, 64
+    step_size = 64
+    # width, height = step_size * n, step_size * n
     # tif_file = cwd + '{}-sar-{}.tif'.format(shape_name, start_date)
     tif_file = os.getenv('SAR_TIFF_FILE')
     image = load_image(tif_file)
@@ -166,7 +174,7 @@ def full_cycle():
     pred_file = os.getenv('PREDICTIONS_FILE')
     model = train_model.load_model(model_file, device)
     pred_mask = visualize_predicted_image(image, model, device)
-    generate_raster_image(pred_mask, pred_file, cwd, tif_file, width, height)
+    generate_raster_image(pred_mask, pred_file, tif_file, step_size)
     polygonize_raster_full(cwd, pred_file, shape_name, start_date)
 
 
