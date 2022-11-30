@@ -1,5 +1,6 @@
 import random
 import time
+from pathlib import Path
 
 import geojson
 import geopandas
@@ -33,6 +34,12 @@ def download_country_boundaries(iso, adm, file_name):
     # ISO = 'SWE'  # "DEU" is the ISO code for Germany
     # ADM = 'ADM2'  # Equivalent to administrative districts
 
+    my_file = Path(file_name)
+    if my_file.is_file():
+        # file exists
+        print(f'GeoJSON file already exists: {file_name}')
+        return
+
     # Query geoBoundaries
     r = requests.get("https://www.geoboundaries.org/gbRequest.html?ISO={}&ADM={}".format(iso, adm))
     dl_path = r.json()[0]['gjDownloadURL']
@@ -42,6 +49,8 @@ def download_country_boundaries(iso, adm, file_name):
     geoboundary = requests.get(dl_path).json()
     with open(file_name, 'w') as file:
         geojson.dump(geoboundary, file)
+
+    print(f'Downloaded GeoJSON boundaries file: {file_name}')
 
 
 def get_region_boundaries(shape_name, file_name):

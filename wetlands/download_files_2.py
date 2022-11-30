@@ -9,49 +9,17 @@ import eeconvert as eec
 from wetlands import utils
 
 
-def download_ndwi():
-    geojson_file = os.getenv("GEOJSON_FILE")
-
-    # Read data using GeoPandas
-    geoboundary = gpd.read_file(geojson_file)
-    print("Data dimensions: {}".format(geoboundary.shape))
-
-    shape_name = os.getenv('REGION_NAME')
-
-    ee.Authenticate()
-    ee.Initialize()
-
+def download_ndwi(region):
     product = 'COPERNICUS/S2'
-
-    # Dates for Sala kommun
-    # min_date = '2018-01-01'
-    # max_date = '2020-01-01'
-
-    # Dates for Lindesberg kommun
-    min_date = '2018-01-01'
-    max_date = '2020-01-01'
-
-    # min_date = os.getenv('START_DATE')
-    # max_date = os.getenv('END_DATE')
+    shape_name = os.getenv("REGION_NAME")
     cloud_pct = 10
 
-    # Get the shape geometry for Sala kommun
-    region = geoboundary.loc[geoboundary.shapeName == shape_name]
-    centroid = region.iloc[0].geometry.centroid.coords[0]
-    region = eec.gdfToFc(region)
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
 
-    image = ee.ImageCollection(product) \
-        .filterBounds(region) \
-        .filterDate(str(min_date), str(max_date)) \
-        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct)) \
-        .median() \
-        .clip(region)
+    image = aggregate_and_clip(image_collection, region)
 
     ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
-    # Map = emap.Map(center=[centroid[1], centroid[0]], zoom=10)
-    # Map.addLayer(ndwi, {'palette': ['red', 'yellow', 'green', 'cyan', 'blue']}, 'NDWI')
-    # Map.addLayerControl()
-    # Map
 
     # Create NDWI mask
     ndwiThreshold = ndwi.gte(0.0)
@@ -63,7 +31,51 @@ def download_ndwi():
     semiNdwiMask = semiNdwiMask.multiply(0.5).add(ndwiThreshold.multiply(ndwiThreshold.eq(0.0)))
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
-    newImageTask = export_image(new_image, shape_name + '_new_image_2018-07', region, folder)
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_ndwi_mask_{aggregate_function}_{start_date}'
+    newImageTask = export_image(new_image, file_name, region, folder)
+
+
+def get_region():
+    geojson_file = os.getenv("GEOJSON_FILE")
+
+    # Read data using GeoPandas
+    geoboundary = gpd.read_file(geojson_file)
+    print("Data dimensions: {}".format(geoboundary.shape))
+
+    shape_name = os.getenv('REGION_NAME')
+
+    # Get the shape geometry
+    region = geoboundary.loc[geoboundary.shapeName == shape_name]
+    region = eec.gdfToFc(region)
+
+    return region
+
+
+def get_image_collection(product, region):
+
+    start_date = os.getenv("START_DATE")
+    end_date = os.getenv("END_DATE")
+
+    image_collection = ee.ImageCollection(product) \
+        .filterBounds(region) \
+        .filterDate(str(start_date), str(end_date))
+
+    return image_collection
+
+
+def aggregate_and_clip(image_collection, region):
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+
+    if aggregate_function == "median":
+        image = image_collection.median().clip(region)
+    elif aggregate_function == "mosaic":
+        image = image_collection.mosaic().clip(region)
+    else:
+        raise ValueError(f"Unknown aggregate function: {aggregate_function}")
+
+    return image
 
 
 def export_image(image, filename, region, folder):
@@ -90,90 +102,64 @@ def export_image(image, filename, region, folder):
         description=filename,
         fileFormat='GeoTIFF',
         crs='EPSG:4326',
-        maxPixels=900000000
+        maxPixels=1e10
     )
     task.start()
 
     return task
 
 
-def download_sar():
-
-    geojson_file = os.getenv("GEOJSON_FILE")
-
-    # Read data using GeoPandas
-    geoboundary = gpd.read_file(geojson_file)
-    print("Data dimensions: {}".format(geoboundary.shape))
-
-    shape_name = os.getenv('REGION_NAME')
-
-    ee.Authenticate()
-    ee.Initialize()
-
+def download_sar(region):
     product = 'COPERNICUS/S1_GRD'
+    shape_name = os.getenv("REGION_NAME")
 
-    # Dates for Sala kommun
-    # min_date = '2018-01-01'
-    # max_date = '2020-01-01'
+    image_collection = get_image_collection(product, region)
 
-    # Dates for Lindesberg kommun
-    min_date = '2018-01-01'
-    max_date = '2019-01-01'
-
-    # min_date = os.getenv('START_DATE')
-    # max_date = os.getenv('END_DATE')
-
-    # Get the shape geometry for Sala kommun
-    region = geoboundary.loc[geoboundary.shapeName == shape_name]
-    centroid = region.iloc[0].geometry.centroid.coords[0]
-    region = eec.gdfToFc(region)
-
-    # sarImage = ee.ImageCollection(product)\
-    #         .filterBounds(region)\
-    #         .filterDate(str(min_date), str(max_date))\
-    #         .median()\
-    #         .clip(region)
-
-    sarImage = ee.ImageCollection(product) \
-        .filterBounds(region) \
-        .filterDate(str(min_date), str(max_date)) \
+    image_collection = image_collection \
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
         .filter(ee.Filter.eq('instrumentMode', 'IW')) \
-        .filter(ee.Filter.eq('orbitProperties_pass', 'ASCENDING')) \
-        .median() \
-        .clip(region)
+        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
 
-    bandNames = sarImage.bandNames()
-    print(bandNames.getInfo())
+    sar_image = aggregate_and_clip(image_collection, region)
 
-    sarImage = sarImage.select(['VV'])
+    band_names = sar_image.bandNames()
+    print(band_names.getInfo())
 
-    percentiles = sarImage.reduceRegion(
+    sar_image = sar_image.select(['VV'])
+
+    percentiles = sar_image.reduceRegion(
         reducer=ee.Reducer.percentile([0, 1, 5, 50, 95, 99, 100]),
         geometry=region,
-        scale=10
+        scale=10,
+        maxPixels=1e10
     )
 
-    minValue = percentiles.get("VV_p1").getInfo()
-    maxValue = percentiles.get("VV_p99").getInfo()
+    min_value = percentiles.get("VV_p1").getInfo()
+    max_value = percentiles.get("VV_p99").getInfo()
 
-    print(minValue)
-    print(maxValue)
+    print(min_value)
+    print(max_value)
 
-    sarImage = sarImage.float()
+    sar_image = sar_image.float()
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
-    task = export_image(sarImage, shape_name + '_sar_vv_single_5', region, folder)
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_sar_vv_single_{aggregate_function}_{start_date}'
+    task = export_image(sar_image, file_name, region, folder)
 
 
 def main():
     load_dotenv()
+    ee.Authenticate()
+    ee.Initialize()
 
     country_code = os.getenv("COUNTRY_CODE")
     file_name = os.getenv("GEOJSON_FILE")
     utils.download_country_boundaries(country_code, 'ADM2', file_name)
-    download_ndwi()
-    download_sar()
+    region = get_region()
+    download_ndwi(region)
+    download_sar(region)
 
 
 start = time.time()
