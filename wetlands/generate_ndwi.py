@@ -82,14 +82,15 @@ def export_ndwi_mask_data(tiles, tif_file):
 
 def full_cycle():
     file_name = os.getenv('GEOJSON_FILE')
-    shape_name = os.getenv('REGION_NAME')
+    region_name = os.getenv('REGION_NAME')
     tif_file = os.getenv('NDWI_TIFF_FILE')
     country_code = os.getenv('COUNTRY_CODE')
+    region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
 
-    utils.download_country_boundaries(country_code, 'ADM2', file_name)
-    geoboundary = utils.get_region_boundaries(shape_name, file_name)
+    utils.download_country_boundaries(country_code, region_admin_level, file_name)
+    geoboundary = utils.get_region_boundaries(region_name, file_name)
 
-    tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
+    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary)
     # print(tiles.columns.values)
     export_ndwi_mask_data(tiles, tif_file)
     # tiles['split'] = 'train'
@@ -102,22 +103,23 @@ def full_cycle():
 def full_cycle_with_visualization():
 
     file_name = os.getenv('GEOJSON_FILE')
-    shape_name = os.getenv('REGION_NAME')
+    region_name = os.getenv('REGION_NAME')
     country_code = os.getenv('COUNTRY_CODE')
+    region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
     export_folder = os.getenv('NDWI_MASK_DIR')
     cwd = os.getenv('CWD_DIR')
-    print('Shape name', shape_name)
+    print('Shape name', region_name)
 
-    utils.download_country_boundaries(country_code, 'ADM2', file_name)
-    geoboundary = utils.get_region_boundaries(shape_name, file_name)
-    utils.show_region_boundaries(geoboundary, shape_name)
+    utils.download_country_boundaries(country_code, region_admin_level, file_name)
+    geoboundary = utils.get_region_boundaries(region_name, file_name)
+    utils.show_region_boundaries(geoboundary, region_name)
     tif_file = os.getenv('NDWI_TIFF_FILE')
-    viz_utils.visualize_sentinel2_image(geoboundary, shape_name, tif_file)
+    viz_utils.visualize_sentinel2_image(geoboundary, region_name, tif_file)
 
-    output_file = cwd + '{}.geojson'.format(shape_name)
-    tiles = geo_utils.generate_tiles(tif_file, output_file, shape_name, size=64)
-    viz_utils.visualize_tiles(geoboundary, shape_name, tif_file, tiles)
-    tiles = geo_utils.get_tiles(shape_name, tif_file, geoboundary)
+    output_file = cwd + '{}.geojson'.format(region_name)
+    tiles = geo_utils.generate_tiles(tif_file, output_file, region_name, size=64)
+    viz_utils.visualize_tiles(geoboundary, region_name, tif_file, tiles)
+    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary)
     # viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
     # viz_utils.show_crop(tif_file, [tiles.iloc[20]['geometry']])
     # viz_utils.show_crop(tif_file, [tiles.iloc[30]['geometry']])
