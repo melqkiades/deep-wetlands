@@ -2,29 +2,18 @@ import os
 import time
 
 from dotenv import load_dotenv
-import requests
 import geopandas as gpd
-import geojson
 import ee
 import eeconvert as eec
 
+from wetlands import utils
+
 
 def download_ndwi():
-    ISO = 'SWE'  # "DEU" is the ISO code for Germany
-    ADM = 'ADM2'  # Equivalent to administrative districts
-
-    # Query geoBoundaries
-    r = requests.get("https://www.geoboundaries.org/gbRequest.html?ISO={}&ADM={}".format(ISO, ADM))
-    dl_path = r.json()[0]['gjDownloadURL']
-
-    # Save the result as a GeoJSON
-    filename = 'geoboundary.geojson'
-    geoboundary = requests.get(dl_path).json()
-    with open(filename, 'w') as file:
-        geojson.dump(geoboundary, file)
+    geojson_file = os.getenv("GEOJSON_FILE")
 
     # Read data using GeoPandas
-    geoboundary = gpd.read_file(filename)
+    geoboundary = gpd.read_file(geojson_file)
     print("Data dimensions: {}".format(geoboundary.shape))
 
     shape_name = os.getenv('REGION_NAME')
@@ -71,17 +60,10 @@ def download_ndwi():
     semiNdwiMask = ndwiThreshold.eq(0.0)
     new_image = semiNdwiMask.multiply(0.5).add(semiNdwiImage.multiply(semiNdwiMask.neq(0.0)))
     new_image = new_image.add(semiNdwiImage)
-
-    # var mask = image.gt(2)
-    # var new_image = mask.multiply(value).add(image.multiply(mask.not()))
-
-    # semiNdwiMask = semiNdwiMask.multiply(0.5).add(semiNdwiMask.multiply(ndwiThreshold.eq(0.0)))
-    # semiNdwiMask = semiNdwiMask.multiply(0.5)
     semiNdwiMask = semiNdwiMask.multiply(0.5).add(ndwiThreshold.multiply(ndwiThreshold.eq(0.0)))
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
-    # task = export_image(image, shape_name + '_all_bands_2', region, folder)
-    newImageTask = export_image(new_image, shape_name + '_new_image_5', region, folder)
+    newImageTask = export_image(new_image, shape_name + '_new_image_2018-07', region, folder)
 
 
 def export_image(image, filename, region, folder):
@@ -116,21 +98,11 @@ def export_image(image, filename, region, folder):
 
 
 def download_sar():
-    ISO = 'SWE'  # "DEU" is the ISO code for Germany
-    ADM = 'ADM2'  # Equivalent to administrative districts
 
-    # Query geoBoundaries
-    r = requests.get("https://www.geoboundaries.org/gbRequest.html?ISO={}&ADM={}".format(ISO, ADM))
-    dl_path = r.json()[0]['gjDownloadURL']
-
-    # Save the result as a GeoJSON
-    filename = 'geoboundary.geojson'
-    geoboundary = requests.get(dl_path).json()
-    with open(filename, 'w') as file:
-        geojson.dump(geoboundary, file)
+    geojson_file = os.getenv("GEOJSON_FILE")
 
     # Read data using GeoPandas
-    geoboundary = gpd.read_file(filename)
+    geoboundary = gpd.read_file(geojson_file)
     print("Data dimensions: {}".format(geoboundary.shape))
 
     shape_name = os.getenv('REGION_NAME')
@@ -179,7 +151,7 @@ def download_sar():
     percentiles = sarImage.reduceRegion(
         reducer=ee.Reducer.percentile([0, 1, 5, 50, 95, 99, 100]),
         geometry=region,
-        scale=20
+        scale=10
     )
 
     minValue = percentiles.get("VV_p1").getInfo()
@@ -197,8 +169,11 @@ def download_sar():
 def main():
     load_dotenv()
 
+    country_code = os.getenv("COUNTRY_CODE")
+    file_name = os.getenv("GEOJSON_FILE")
+    utils.download_country_boundaries(country_code, 'ADM2', file_name)
     download_ndwi()
-    # download_sar()
+    download_sar()
 
 
 start = time.time()

@@ -143,6 +143,14 @@ def normalize_tiff():
     print('Are arrays equal?', (numpy_image == normalized_array).all())
 
 
+def integer_division():
+
+    n = 35
+    d = 3
+    r = n - n%d
+
+    print(r)
+
 
 
 def main():
@@ -154,7 +162,8 @@ def main():
     # parallel_array_replace()
     # count_class_labels()
     # min_max_scale_nan()
-    normalize_tiff()
+    # normalize_tiff()
+    integer_division()
 
 start = time.time()
 main()
