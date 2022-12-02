@@ -424,7 +424,7 @@ def full_cycle():
         print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
         wandb.log(metrics)
 
-    model_dir = cwd + os.getenv('MODELS_DIR')
+    model_dir = os.getenv('MODELS_DIR')
     model_file = os.getenv('MODEL_FILE')
     save_model(model, model_dir, model_file)
 
