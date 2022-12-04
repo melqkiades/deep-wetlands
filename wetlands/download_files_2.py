@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import geopandas as gpd
 import ee
 import eeconvert as eec
+from unidecode import unidecode
 
 from wetlands import utils
 
@@ -99,7 +100,7 @@ def export_image(image, filename, region, folder):
         driveFolder=folder,
         scale=10,
         region=region.geometry(),
-        description=filename,
+        description=unidecode(filename),
         fileFormat='GeoTIFF',
         crs='EPSG:4326',
         maxPixels=1e10
@@ -112,11 +113,12 @@ def export_image(image, filename, region, folder):
 def download_sar(region):
     product = 'COPERNICUS/S1_GRD'
     shape_name = os.getenv("REGION_NAME")
+    polarization = os.getenv("SAR_POLARIZATION")
 
     image_collection = get_image_collection(product, region)
 
     image_collection = image_collection \
-        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization)) \
         .filter(ee.Filter.eq('instrumentMode', 'IW')) \
         .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
 
@@ -125,7 +127,7 @@ def download_sar(region):
     band_names = sar_image.bandNames()
     print(band_names.getInfo())
 
-    sar_image = sar_image.select(['VV'])
+    sar_image = sar_image.select([polarization])
 
     percentiles = sar_image.reduceRegion(
         reducer=ee.Reducer.percentile([0, 1, 5, 50, 95, 99, 100]),
@@ -134,8 +136,8 @@ def download_sar(region):
         maxPixels=1e10
     )
 
-    min_value = percentiles.get("VV_p1").getInfo()
-    max_value = percentiles.get("VV_p99").getInfo()
+    min_value = percentiles.get(f"{polarization}_p1").getInfo()
+    max_value = percentiles.get(f"{polarization}_p99").getInfo()
 
     print(min_value)
     print(max_value)
@@ -145,8 +147,59 @@ def download_sar(region):
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
-    file_name = f'{shape_name}_sar_vv_single_{aggregate_function}_{start_date}'
+    file_name = f'{shape_name}_sar_{polarization}_{aggregate_function}_{start_date}'
     task = export_image(sar_image, file_name, region, folder)
+
+
+def download_sar_vv_plus_vh(region):
+    product = 'COPERNICUS/S1_GRD'
+    shape_name = os.getenv("REGION_NAME")
+    polarization = os.getenv("SAR_POLARIZATION")
+
+    image_collection = get_image_collection(product, region)
+
+    image_collection = image_collection \
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization)) \
+        .filter(ee.Filter.eq('instrumentMode', 'IW')) \
+        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
+
+    sar_image = aggregate_and_clip(image_collection, region)
+    sar_image = sar_image.float()
+
+    vv_image = sar_image.select(['VV'])
+    vh_image = sar_image.select(['VH'])
+    vv_plus_vh_image = vv_image.add(vh_image).rename('VV_pls_VH')
+    vv_minus_vh_image = vv_image.subtract(vh_image).rename('VV-VH')
+    vh_minus_vv_image = vh_image.subtract(vv_image).rename('VH-VV')
+    vv_over_vh_image = vv_image.divide(vh_image).rename('VH/VV')
+    vh_over_vv_image = vh_image.divide(vv_image).rename('VV/VH')
+    nd_vv_vh_image = sar_image.normalizedDifference(['VV', 'VH']).rename('ND_VV-VH')
+    nd_vh_vv_image = sar_image.normalizedDifference(['VH', 'VV']).rename('ND_VH-VV')
+
+    folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+
+    # file_name = f'{shape_name}_sar_vv_plus_vh_{aggregate_function}_{start_date}'
+    # export_image(vv_plus_vh_image, file_name, region, folder)
+    #
+    # file_name = f'{shape_name}_sar_vv_minus_vh_{aggregate_function}_{start_date}'
+    # export_image(vv_minus_vh_image, file_name, region, folder)
+    #
+    # file_name = f'{shape_name}_sar_vh_minus_vv_{aggregate_function}_{start_date}'
+    # export_image(vh_minus_vv_image, file_name, region, folder)
+    #
+    # file_name = f'{shape_name}_sar_vv_over_vh_{aggregate_function}_{start_date}'
+    # export_image(vv_over_vh_image, file_name, region, folder)
+    #
+    # file_name = f'{shape_name}_sar_vh_over_vv_{aggregate_function}_{start_date}'
+    # export_image(vh_over_vv_image, file_name, region, folder)
+
+    file_name = f'{shape_name}_sar_nd_vv-vh_{aggregate_function}_{start_date}'
+    export_image(nd_vv_vh_image, file_name, region, folder)
+
+    file_name = f'{shape_name}_sar_nd_vh-vv_{aggregate_function}_{start_date}'
+    export_image(nd_vh_vv_image, file_name, region, folder)
 
 
 def main():
@@ -156,10 +209,12 @@ def main():
 
     country_code = os.getenv("COUNTRY_CODE")
     file_name = os.getenv("GEOJSON_FILE")
-    utils.download_country_boundaries(country_code, 'ADM2', file_name)
+    region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
+    utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
     download_ndwi(region)
     download_sar(region)
+    # download_sar_vv_plus_vh(region)
 
 
 start = time.time()
