@@ -1,3 +1,4 @@
+import os
 
 import pandas as pd
 import rasterio as rio
@@ -65,8 +66,10 @@ def generate_tiles(image_file, output_file, area_str, size=64):
 
 
 def get_tiles(shape_name, tif_file, geoboundary):
-    cwd = '/Users/frape/Projects/DeepWetlands/src/deep-wetlands/external/data/Land Use and Land Cover Classification'
-    output_file = cwd + '{}.geojson'.format(shape_name)
+    cwd = os.getenv("CWD_DIR")
+    output_file = cwd + '/{}.geojson'.format(shape_name)
+    output_file = output_file.replace(' ', '_')
+
     tiles = generate_tiles(tif_file, output_file, shape_name, size=64)
 
     boundary = geoboundary[geoboundary.shapeName == shape_name]
