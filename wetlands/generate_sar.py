@@ -107,7 +107,8 @@ def full_cycle():
     num_rows = len(tiles_dataframe)
     test_rows = int(num_rows * 0.8)
     tiles_dataframe.loc[tiles_dataframe.head(test_rows).index, 'split'] = 'train'
-    tiles_dataframe.to_csv('/tmp/my_sar_tiles.csv', columns=['id', 'split'], index_label='index')
+    tiles_file = os.getenv("TILES_FILE")
+    tiles_dataframe.to_csv(tiles_file, columns=['id', 'split'], index_label='index')
 
 
 def full_cycle_with_visualization():
