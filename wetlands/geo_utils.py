@@ -68,7 +68,7 @@ def generate_tiles(image_file, output_file, area_str, size=64):
 def get_tiles(shape_name, tif_file, geoboundary):
     cwd = os.getenv("CWD_DIR")
     output_file = cwd + '/{}.geojson'.format(shape_name)
-    output_file = output_file.replace(' ', '_')
+    # output_file = output_file.replace(' ', '_')
 
     tiles = generate_tiles(tif_file, output_file, shape_name, size=64)
 
