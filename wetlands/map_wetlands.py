@@ -124,6 +124,7 @@ def generate_raster_image(pred_mask, pred_file, tif_file, step_size):
 
     # Plot image and corresponding boundary
     fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_title(label=os.getenv("MODEL_NAME"))
     plt.imshow(mask.read(1))
     plt.show()
     plt.clf()
@@ -148,7 +149,8 @@ def polygonize_raster_full(cwd, pred_file, shape_name, start_date):
     polygonize_raster(pred_file, out_shape_file)
     print(f'Exported shape file to: {out_shape_file}')
     polygons = gpd.read_file(out_shape_file)
-    polygons.plot(figsize=(10, 10))
+    ax = polygons.plot(figsize=(10, 10))
+    ax.set_title(label=os.getenv("MODEL_NAME"))
     plt.show()
     plt.clf()
 
