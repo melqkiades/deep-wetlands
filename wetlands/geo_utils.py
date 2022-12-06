@@ -75,7 +75,7 @@ def get_tiles(shape_name, tif_file, geoboundary):
     boundary = geoboundary[geoboundary.shapeName == shape_name]
 
     # Geopandas sjoin function
-    # tiles = gpd.sjoin(tiles, boundary, op='within')
-    tiles = gpd.sjoin(tiles, boundary, predicate='within')
+    tiles = gpd.sjoin(tiles, boundary, op='within')
+    # tiles = gpd.sjoin(tiles, boundary, predicate='within')
 
     return tiles
