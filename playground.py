@@ -1,9 +1,13 @@
+import os
 import time
 
+import cv2
 import numpy
 import pandas
 from PIL import Image
 import rasterio as rio
+from matplotlib import pyplot as plt
+from rasterio.plot import show
 
 
 def clip_matrix():
@@ -152,6 +156,61 @@ def integer_division():
     print(r)
 
 
+def visualize_tiff():
+
+    # tiff_file = '/tmp/S1A_IW_GRDH_1SDV_20180704T163740_20180704T163805_022647_02742B_DF22.tif'
+    # tiff_file = '/tmp/Flacksjon_study_area_sar_vh_2018-07-04_5.tif'
+    tiff_file = '/tmp/bulk_export_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
+    tiff_image = rio.open(tiff_file)
+    print(tiff_image.read().shape)
+    print(tiff_image.descriptions)
+    # vv_index = tiff_image.descriptions.index('VV')
+    vh_index = tiff_image.descriptions.index('VH')
+    # print('VV index', vv_index)
+    print('VH index', vh_index)
+    file_name = os.path.basename(tiff_file)
+    image_date = file_name[17:25]
+    print(image_date)
+
+    numpy_image = tiff_image.read([1])[0]
+    show(numpy_image, title='')
+    # print(numpy_image.shape, type(numpy_image))
+    # # print(tiff_image)
+    plt.show()
+
+
+def count_color_pixels():
+    im = Image.open('/Users/frape/KTH/Funding/MSCA-PF/2022/Figures/flacksjon_sar_mask.png')
+    # im = Image.open('/Users/frape/KTH/Funding/MSCA-PF/2022/Figures/flacksjon_ndwi_mask.png')
+
+    black = 0
+    red = 0
+
+    for pixel in im.getdata():
+        if pixel == (0, 0, 0, 255):  # if your image is RGB (if RGBA, (0, 0, 0, 255) or so
+            black += 1
+        else:
+            red += 1
+    print('black=' + str(black) + ', blue=' + str(red))
+
+
+def transform_black_pixels_to_transparent():
+
+    # Load image as Numpy array in BGR order
+    na = cv2.imread('/Users/frape/KTH/Funding/MSCA-PF/2022/Figures/flacksjon_sar_mask.png')
+
+    # Make a True/False mask of pixels whose BGR values sum to more than zero
+    alpha = numpy.sum(na, axis=-1) > 0
+
+    # Convert True/False to 0/255 and change type to "uint8" to match "na"
+    alpha = numpy.uint8(alpha * 255)
+
+    # Stack new alpha layer with existing image to go from BGR to BGRA, i.e. 3 channels to 4 channels
+    res = numpy.dstack((na, alpha))
+
+    # Save result
+    cv2.imwrite('/tmp/transparent.png', res)
+
 
 def main():
     # clip_matrix()
@@ -163,7 +222,10 @@ def main():
     # count_class_labels()
     # min_max_scale_nan()
     # normalize_tiff()
-    integer_division()
+    # integer_division()
+    # visualize_tiff()
+    # count_color_pixels()
+    transform_black_pixels_to_transparent()
 
 start = time.time()
 main()
