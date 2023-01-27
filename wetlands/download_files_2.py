@@ -35,7 +35,7 @@ def download_ndwi(region):
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
-    file_name = f'{shape_name}_ndwi_mask_{aggregate_function}_{start_date}'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_mask'
     newImageTask = export_image(new_image, file_name, region, folder)
 
 
@@ -148,7 +148,7 @@ def download_sar(region):
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
-    file_name = f'{shape_name}_sar_{polarization}_{aggregate_function}_{start_date}'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_sar_{polarization}'
     task = export_image(sar_image, file_name, region, folder)
 
 
