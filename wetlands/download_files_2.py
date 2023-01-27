@@ -1,6 +1,7 @@
 import os
 import time
 
+import geetools
 from dotenv import load_dotenv
 import geopandas as gpd
 import ee
@@ -202,6 +203,90 @@ def download_sar_vv_plus_vh(region):
     export_image(nd_vh_vv_image, file_name, region, folder)
 
 
+def bulk_export_sar_flacksjon():
+    startDate = '2023-01-01'
+    endDate = '2023-12-31'
+
+    roi = ee.Geometry.Polygon(
+        [[[16.278247539412213, 59.84820707394825],
+          [16.363563243757916, 59.84820707394825],
+          [16.363563243757916, 59.88922451187625],
+          [16.278247539412213, 59.88922451187625]]])
+
+    collection = ee.ImageCollection('COPERNICUS/S1_GRD')\
+        .filterDate(startDate, endDate)\
+        .filterBounds(roi)\
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))\
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))\
+        .filter(ee.Filter.eq('instrumentMode', 'IW')) \
+        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))\
+        .filter(ee.Filter.eq('resolution', 'H'))\
+        .filter(ee.Filter.eq('resolution_meters', 10))
+
+    print('Collection size:', collection.size().getInfo())
+
+    # batch export to Google Drive
+    geetools.batch.Export.imagecollection.toDrive(
+        collection,
+        'bulk_export_flacksjon_2014',
+        namePattern='{id}',
+        scale=10,
+        dataType="float",
+        region=roi,
+        crs='EPSG:4326',
+        datePattern=None,
+        extra=None,
+        verbose=False
+    )
+
+
+def bulk_export_ndwi_flacksjon():
+    startDate = '2019-01-01'
+    endDate = '2022-12-31'
+
+    roi = ee.Geometry.Polygon(
+        [[[16.278247539412213, 59.84820707394825],
+          [16.363563243757916, 59.84820707394825],
+          [16.363563243757916, 59.88922451187625],
+          [16.278247539412213, 59.88922451187625]]])
+
+    def clip_image(image):
+        return image.clip(roi)
+
+    collection = ee.ImageCollection('COPERNICUS/S2')\
+        .filterDate(startDate, endDate)\
+        .filterBounds(roi)\
+        .filter(ee.Filter.eq('resolution_meters', 10))\
+        .map(clip_image)\
+        .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', 0))
+
+    # normalizedImageCollection = opticalImageCollection.map(function(image) {
+    # var ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI-collection');
+    # var ndwiThreshold = ndwi.gte(0.0);
+    # ndwiThreshold = ndwi.gte(0.0)
+    # var semiNdwiImage = ndwiThreshold.neq(0.0)
+    # var semiNdwiMask = ndwiThreshold.eq(0.0)
+    # var new_image = semiNdwiMask.multiply(0.5).add(semiNdwiImage.multiply(semiNdwiMask.neq(0.0)))
+    # new_image = new_image.add(semiNdwiImage).rename('NDWI-mask');
+    # return ee.Image(image).addBands(ndwi).addBands(new_image).copyProperties(image);
+    # });
+
+
+    # # batch export to Google Drive
+    # geetools.batch.Export.imagecollection.toDrive(
+    #     collection,
+    #     'bulk_export_flacksjon',
+    #     namePattern='{id}',
+    #     scale=10,
+    #     dataType="float",
+    #     region=roi,
+    #     crs='EPSG:4326',
+    #     datePattern=None,
+    #     extra=None,
+    #     verbose=False
+    # )
+
+
 def main():
     load_dotenv()
     ee.Authenticate()
@@ -215,6 +300,7 @@ def main():
     download_ndwi(region)
     download_sar(region)
     # download_sar_vv_plus_vh(region)
+    # bulk_export_sar_flacksjon()
 
 
 start = time.time()
