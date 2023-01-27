@@ -115,13 +115,14 @@ def download_sar(region):
     product = 'COPERNICUS/S1_GRD'
     shape_name = os.getenv("REGION_NAME")
     polarization = os.getenv("SAR_POLARIZATION")
+    orbit_pass = os.getenv("ORBIT_PASS")
 
     image_collection = get_image_collection(product, region)
 
     image_collection = image_collection \
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization)) \
         .filter(ee.Filter.eq('instrumentMode', 'IW')) \
-        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
+        .filter(ee.Filter.eq('orbitProperties_pass', orbit_pass))
 
     sar_image = aggregate_and_clip(image_collection, region)
 
@@ -156,13 +157,14 @@ def download_sar_vv_plus_vh(region):
     product = 'COPERNICUS/S1_GRD'
     shape_name = os.getenv("REGION_NAME")
     polarization = os.getenv("SAR_POLARIZATION")
+    orbit_pass = os.getenv("ORBIT_PASS")
 
     image_collection = get_image_collection(product, region)
 
     image_collection = image_collection \
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization)) \
         .filter(ee.Filter.eq('instrumentMode', 'IW')) \
-        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
+        .filter(ee.Filter.eq('orbitProperties_pass', orbit_pass))
 
     sar_image = aggregate_and_clip(image_collection, region)
     sar_image = sar_image.float()
@@ -206,6 +208,7 @@ def download_sar_vv_plus_vh(region):
 def bulk_export_sar_flacksjon():
     startDate = '2023-01-01'
     endDate = '2023-12-31'
+    orbit_pass = os.getenv("ORBIT_PASS")
 
     roi = ee.Geometry.Polygon(
         [[[16.278247539412213, 59.84820707394825],
@@ -219,7 +222,7 @@ def bulk_export_sar_flacksjon():
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))\
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))\
         .filter(ee.Filter.eq('instrumentMode', 'IW')) \
-        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))\
+        .filter(ee.Filter.eq('orbitProperties_pass', orbit_pass))\
         .filter(ee.Filter.eq('resolution', 'H'))\
         .filter(ee.Filter.eq('resolution_meters', 10))
 
