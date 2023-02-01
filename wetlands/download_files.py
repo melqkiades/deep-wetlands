@@ -244,8 +244,8 @@ def bulk_export_sar_flacksjon():
 
 
 def bulk_export_ndwi_flacksjon():
-    startDate = '2019-01-01'
-    endDate = '2022-12-31'
+    start_date = '2019-01-01'
+    end_date = '2022-12-31'
 
     roi = ee.Geometry.Polygon(
         [[[16.278247539412213, 59.84820707394825],
@@ -256,38 +256,72 @@ def bulk_export_ndwi_flacksjon():
     def clip_image(image):
         return image.clip(roi)
 
+    def create_ndwi_mask(image):
+        ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI-collection')
+        ndwiThreshold = ndwi.gte(0.0)
+        semiNdwiImage = ndwiThreshold.neq(0.0)
+        semiNdwiMask = ndwiThreshold.eq(0.0)
+        new_image = semiNdwiMask.multiply(0.5).add(semiNdwiImage.multiply(semiNdwiMask.neq(0.0)))
+        new_image = new_image.add(semiNdwiImage).rename('NDWI-mask')
+
+        return new_image
+        # return ee.Image(image).addBands(ndwi).addBands(new_image).copyProperties(image)
+
     collection = ee.ImageCollection('COPERNICUS/S2')\
-        .filterDate(startDate, endDate)\
+        .filterDate(start_date, end_date)\
         .filterBounds(roi)\
-        .filter(ee.Filter.eq('resolution_meters', 10))\
-        .map(clip_image)\
-        .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', 0))
+        .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', 1))\
+        .map(lambda image: clip_image(image))\
+        .map(lambda image: create_ndwi_mask(image))
 
-    # normalizedImageCollection = opticalImageCollection.map(function(image) {
-    # var ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI-collection');
-    # var ndwiThreshold = ndwi.gte(0.0);
-    # ndwiThreshold = ndwi.gte(0.0)
-    # var semiNdwiImage = ndwiThreshold.neq(0.0)
-    # var semiNdwiMask = ndwiThreshold.eq(0.0)
-    # var new_image = semiNdwiMask.multiply(0.5).add(semiNdwiImage.multiply(semiNdwiMask.neq(0.0)))
-    # new_image = new_image.add(semiNdwiImage).rename('NDWI-mask');
-    # return ee.Image(image).addBands(ndwi).addBands(new_image).copyProperties(image);
-    # });
+    print('NDWI collection size:', collection.size().getInfo())
+
+    # batch export to Google Drive
+    geetools.batch.Export.imagecollection.toDrive(
+        collection,
+        'bulk_export_flacksjon_ndwi',
+        namePattern='{id}',
+        scale=10,
+        dataType="float",
+        region=roi,
+        crs='EPSG:4326',
+        datePattern=None,
+        extra=None,
+        verbose=False
+    )
 
 
-    # # batch export to Google Drive
-    # geetools.batch.Export.imagecollection.toDrive(
-    #     collection,
-    #     'bulk_export_flacksjon',
-    #     namePattern='{id}',
-    #     scale=10,
-    #     dataType="float",
-    #     region=roi,
-    #     crs='EPSG:4326',
-    #     datePattern=None,
-    #     extra=None,
-    #     verbose=False
-    # )
+def bulk_export_rgb_flacksjon():
+    start_date = '2019-01-01'
+    end_date = '2022-12-31'
+
+    roi = ee.Geometry.Polygon(
+        [[[16.278247539412213, 59.84820707394825],
+          [16.363563243757916, 59.84820707394825],
+          [16.363563243757916, 59.88922451187625],
+          [16.278247539412213, 59.88922451187625]]])
+
+    collection = ee.ImageCollection('COPERNICUS/S2')\
+        .filterDate(start_date, end_date)\
+        .filterBounds(roi)\
+        .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', 1))
+    collection = collection.select(['B4', 'B3', 'B2'])
+
+    print('RGB collection size:', collection.size().getInfo())
+
+    # batch export to Google Drive
+    geetools.batch.Export.imagecollection.toDrive(
+        collection,
+        'bulk_export_flacksjon_rgb',
+        namePattern='{id}',
+        scale=10,
+        dataType="float",
+        region=roi,
+        crs='EPSG:4326',
+        datePattern=None,
+        extra=None,
+        verbose=False
+    )
 
 
 def main():
@@ -304,6 +338,8 @@ def main():
     download_sar(region)
     # download_sar_vv_plus_vh(region)
     # bulk_export_sar_flacksjon()
+    # bulk_export_ndwi_flacksjon()
+    # bulk_export_rgb_flacksjon()
 
 
 start = time.time()
