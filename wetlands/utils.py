@@ -81,9 +81,9 @@ def generate_model_file_name(epochs=None):
         epochs = os.getenv('EPOCHS')
     learning_rate = os.getenv('LEARNING_RATE')
     random_seed = os.getenv('RANDOM_SEED')
-    model_name = f'{base_file_name}_sar_{polarization}_epochs-{epochs}_lr-{learning_rate}_rand-{random_seed}
+    model_name = f'{base_file_name}_sar_{polarization}_epochs-{epochs}_lr-{learning_rate}_rand-{random_seed}'
 
-    print(model_name)
+    # print(model_name)
 
     return model_name
 
