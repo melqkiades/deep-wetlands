@@ -1,3 +1,4 @@
+import os
 import random
 import time
 from pathlib import Path
@@ -7,6 +8,7 @@ import geopandas
 import numpy as np
 import requests
 import torch
+from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
 
@@ -68,6 +70,22 @@ def show_region_boundaries(geoboundary, shape_name):
     fig, ax = plt.subplots(1, figsize=(10, 10))
     geoboundary[geoboundary.shapeName == shape_name].plot('shapeName', legend=True, ax=ax)
     plt.show()
+
+
+def generate_model_file_name(epochs=None):
+    load_dotenv()
+
+    base_file_name = os.getenv('BASE_FILE_NAME')
+    polarization = os.getenv('SAR_POLARIZATION')
+    if epochs is None:
+        epochs = os.getenv('EPOCHS')
+    learning_rate = os.getenv('LEARNING_RATE')
+    random_seed = os.getenv('RANDOM_SEED')
+    model_name = f'{base_file_name}_sar_{polarization}_epochs-{epochs}_lr-{learning_rate}_rand-{random_seed}
+
+    print(model_name)
+
+    return model_name
 
 
 def main():

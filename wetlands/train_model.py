@@ -426,7 +426,7 @@ def full_cycle():
         wandb.log(metrics)
 
         if epoch == 2 or epoch % 5 == 0:
-            model_name = utils.generate_file_name(epoch)
+            model_name = utils.generate_model_file_name(epoch)
             model_file = model_name + '.pth'
             save_model(model, model_dir, model_file)
 
