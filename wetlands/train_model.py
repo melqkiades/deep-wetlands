@@ -361,6 +361,7 @@ def full_cycle():
 
     n_epochs = int(os.getenv('EPOCHS'))
     learning_rate = float(os.getenv('LEARNING_RATE'))
+    model_dir = os.getenv('MODELS_DIR')
     criterion = DiceLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -374,7 +375,7 @@ def full_cycle():
 
     model.to(device)
     for epoch in range(1, n_epochs + 1):
-        print("\nEpoch {}/{}".format(epoch, n_epochs))
+        print("\nEpoch {}/{} {}".format(epoch, n_epochs, time.strftime("%Y/%m/%d-%H:%M:%S")))
         print("-" * 10)
 
         train_metrics = train(
@@ -424,7 +425,11 @@ def full_cycle():
         print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
         wandb.log(metrics)
 
-    model_dir = os.getenv('MODELS_DIR')
+        if epoch == 2 or epoch % 5 == 0:
+            model_name = utils.generate_file_name(epoch)
+            model_file = model_name + '.pth'
+            save_model(model, model_dir, model_file)
+
     model_file = os.getenv('MODEL_FILE')
     save_model(model, model_dir, model_file)
 
