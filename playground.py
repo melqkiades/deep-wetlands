@@ -4,10 +4,13 @@ import time
 import cv2
 import numpy
 import pandas
+import rasterio
 from PIL import Image
 import rasterio as rio
+from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 from rasterio.plot import show
+from scipy import ndimage
 
 
 def clip_matrix():
@@ -212,7 +215,70 @@ def transform_black_pixels_to_transparent():
     cv2.imwrite('/tmp/transparent.png', res)
 
 
+def filter_tiff_image():
+    # Open the input raster file
+    with rasterio.open(r"/tmp/Orebro lan_mosaic_2018-07-04_sar_VH.tif") as src:
+        # Read the input raster values into a numpy array
+        data = src.read(1)
+
+        # Apply the median filter to the input data
+        size = 9
+        filtered_data = ndimage.median_filter(data, size=size)
+
+        # Create a profile for the output raster
+        profile = src.profile
+
+    # Write the filtered data to a new output raster file
+    with rasterio.open(f"/tmp/Orebro lan_mosaic_2018-07-04_sar_VH_filtered_{size}.tif", "w", **profile) as dst:
+        dst.write(filtered_data, 1)
+
+
+def visualize_ndwi_tiff():
+    # tiff_file = '/tmp/20180127T102259_20180127T102314_T33VWG.tif'
+    # tiff_file = '/tmp/20180320T101021_20180320T101021_T33VWG.tif'
+    tiff_file = '/tmp/20180514T101029_20180514T101052_T33VWG.tif'
+    # tiff_file = '/tmp/20180708T101031_20180708T101025_T33VWG.tif'
+    # tiff_file = '/tmp/201810_rgb.tif'
+    tiff_image = rio.open(tiff_file)
+
+    print(tiff_image.read().shape)
+    print(tiff_image.descriptions)
+
+    # Read the grid values into numpy arrays
+    red = tiff_image.read(4)
+    green = tiff_image.read(3)
+    blue = tiff_image.read(2)
+
+    # Function to normalize the grid values
+    def normalize(array):
+        """Normalizes numpy arrays into scale 0.0 - 1.0"""
+        array_min, array_max = array.min(), array.max()
+        return ((array - array_min) / (array_max - array_min))
+
+    red[red > 2000] = 2000
+    green[green > 2000] = 2000
+    blue[blue > 2000] = 2000
+
+    # red[red > numpy.nanpercentile(red, 99)] = numpy.nanpercentile(tiff_image.read((4, 3, 2)), 99)
+    # green[green > numpy.nanpercentile(green, 99)] = numpy.nanpercentile(tiff_image.read((4, 3, 2)), 99)
+    # blue[blue > numpy.nanpercentile(blue, 99)] = numpy.nanpercentile(tiff_image.read((4, 3, 2)), 99)
+
+    # Normalize the bands
+    redn = normalize(red)
+    greenn = normalize(green)
+    bluen = normalize(blue)
+
+    # Create RGB natural color composite
+    rgb = numpy.dstack((redn, greenn, bluen))
+
+    # Let's see how our color composite looks like
+    plt.imshow(rgb)
+    plt.show()
+
+
 def main():
+    load_dotenv()
+
     # clip_matrix()
     # count_pixels_ratio()
     # generate_single_sample_csv()
@@ -225,7 +291,11 @@ def main():
     # integer_division()
     # visualize_tiff()
     # count_color_pixels()
-    transform_black_pixels_to_transparent()
+    # transform_black_pixels_to_transparent()
+    # filter_tiff_image()
+    visualize_ndwi_tiff()
+    # plot_image()
+
 
 start = time.time()
 main()
