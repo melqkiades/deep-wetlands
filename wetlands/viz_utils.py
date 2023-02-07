@@ -1,7 +1,15 @@
+import numpy
 import rasterio as rio
+from PIL import Image
 from matplotlib import pyplot as plt
 from rasterio.plot import show
 import geopandas as gpd
+
+
+def normalize(array):
+    """Normalizes numpy arrays into scale 0.0 - 1.0"""
+    array_min, array_max = array.min(), array.max()
+    return ((array - array_min)/(array_max - array_min))
 
 
 def visualize_sentinel2_image(geoboundary, shape_name, tif_file):
@@ -86,3 +94,42 @@ def show_crop(image, shape, title=''):
         print(out_image.shape, type(out_image))
         print(out_image)
         plt.show()
+
+
+def convert_ndwi_tiff_to_png(tiff_file, out_file):
+
+    tiff_image = rio.open(tiff_file)
+    image_array = tiff_image.read(tiff_image.descriptions.index('NDWI-mask') + 1)
+    image_array[image_array > 0.5] = 1.00
+    image_array[image_array <= 0.5] = 0.0
+
+    plt.imshow(image_array, cmap='gray')
+    img = Image.fromarray(numpy.uint8(image_array * 255), 'L')
+    img.save(out_file)
+
+
+def convert_rgb_tiff_to_png(tiff_file, out_file):
+
+    tiff_image = rio.open(tiff_file)
+
+    # Read the grid values into numpy arrays
+    red_band = tiff_image.descriptions.index('B4') + 1
+    green_band = tiff_image.descriptions.index('B3') + 1
+    blue_band = tiff_image.descriptions.index('B2') + 1
+    red = tiff_image.read(red_band)
+    green = tiff_image.read(green_band)
+    blue = tiff_image.read(blue_band)
+
+    red[red > 2000] = 2000
+    green[green > 2000] = 2000
+    blue[blue > 2000] = 2000
+
+    # Normalize the bands
+    redn = normalize(red)
+    greenn = normalize(green)
+    bluen = normalize(blue)
+
+    # Create RGB natural color composite
+    rgb = numpy.dstack((redn, greenn, bluen))
+    im = Image.fromarray((rgb * 255).astype("uint8"))
+    im.save(out_file)

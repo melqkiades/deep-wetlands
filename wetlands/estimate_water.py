@@ -5,13 +5,12 @@ import time
 import numpy as np
 import pandas
 import rasterio as rio
-import geopandas as gpd
 import torch
 import tqdm
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
-from wetlands import train_model, utils
+from wetlands import train_model, utils, viz_utils
 
 
 def load_image(dir_path, band):
@@ -146,6 +145,36 @@ def update_water_estimates():
         data_frame.to_csv(f'/tmp/descending_{model_name}_new_water_estimates_filtered.csv')
 
 
+def transform_ndwi_tiff_to_grayscale_png():
+    tiff_dir = '/tmp/bulk_export_flacksjon_ndwi/'
+
+    if not os.path.exists(tiff_dir):
+        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
+
+    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+    print(filenames)
+
+    for tiff_file in filenames:
+        tiff_path = tiff_dir + tiff_file
+        out_file = tiff_path.replace('.tif', '.png')
+        viz_utils.convert_ndwi_tiff_to_png(tiff_path, out_file)
+
+
+def transform_rgb_tiff_to_png():
+    tiff_dir = '/tmp/bulk_export_flacksjon_rgb/'
+
+    if not os.path.exists(tiff_dir):
+        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
+
+    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+    print(filenames)
+
+    for tiff_file in filenames:
+        tiff_path = tiff_dir + tiff_file
+        out_file = tiff_path.replace('.tif', '.png')
+        viz_utils.convert_rgb_tiff_to_png(tiff_path, out_file)
+
+
 def full_cycle():
     load_dotenv()
 
@@ -153,6 +182,10 @@ def full_cycle():
     # tiff_dir = '/tmp/bulk_export_flacksjon'
     tiff_dir = os.getenv('BULK_EXPORT_DIR')
     # tiff_dir = '/tmp/new_geo_exports'
+
+    if not os.path.exists(tiff_dir):
+        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
+
     filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
     print(filenames)
 
@@ -185,6 +218,8 @@ def main():
     full_cycle()
     plot_results()
     update_water_estimates()
+    transform_ndwi_tiff_to_grayscale_png()
+    transform_rgb_tiff_to_png()
 
 
 start = time.time()
