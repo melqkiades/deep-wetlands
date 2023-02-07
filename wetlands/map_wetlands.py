@@ -14,12 +14,6 @@ from osgeo import ogr
 from wetlands import train_model, utils
 
 
-def normalize(array):
-    """Normalizes numpy arrays into scale 0.0 - 1.0"""
-    array_min, array_max = array.min(), array.max()
-    return ((array - array_min)/(array_max - array_min))
-
-
 def load_image(dir_path):
 #     image_bands = []
 #     for band in range(1, 4):
