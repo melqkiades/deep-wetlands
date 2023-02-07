@@ -11,6 +11,16 @@ from unidecode import unidecode
 from wetlands import utils
 
 
+def get_flacksjon_geometry():
+    roi = ee.Geometry.Polygon(
+        [[[16.278247539412213, 59.84820707394825],
+          [16.363563243757916, 59.84820707394825],
+          [16.363563243757916, 59.88922451187625],
+          [16.278247539412213, 59.88922451187625]]])
+
+    return roi
+
+
 def download_ndwi(region):
     product = 'COPERNICUS/S2'
     shape_name = os.getenv("REGION_NAME")
@@ -206,18 +216,14 @@ def download_sar_vv_plus_vh(region):
 
 
 def bulk_export_sar_flacksjon():
-    startDate = '2023-01-01'
-    endDate = '2023-12-31'
+    start_date = '2014-01-01'
+    end_date = '2023-12-31'
     orbit_pass = os.getenv("ORBIT_PASS")
 
-    roi = ee.Geometry.Polygon(
-        [[[16.278247539412213, 59.84820707394825],
-          [16.363563243757916, 59.84820707394825],
-          [16.363563243757916, 59.88922451187625],
-          [16.278247539412213, 59.88922451187625]]])
+    roi = get_flacksjon_geometry()
 
     collection = ee.ImageCollection('COPERNICUS/S1_GRD')\
-        .filterDate(startDate, endDate)\
+        .filterDate(start_date, end_date)\
         .filterBounds(roi)\
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))\
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))\
@@ -244,14 +250,10 @@ def bulk_export_sar_flacksjon():
 
 
 def bulk_export_ndwi_flacksjon():
-    start_date = '2019-01-01'
-    end_date = '2022-12-31'
+    start_date = '2014-01-01'
+    end_date = '2023-12-31'
 
-    roi = ee.Geometry.Polygon(
-        [[[16.278247539412213, 59.84820707394825],
-          [16.363563243757916, 59.84820707394825],
-          [16.363563243757916, 59.88922451187625],
-          [16.278247539412213, 59.88922451187625]]])
+    roi = get_flacksjon_geometry()
 
     def clip_image(image):
         return image.clip(roi)
@@ -292,14 +294,10 @@ def bulk_export_ndwi_flacksjon():
 
 
 def bulk_export_rgb_flacksjon():
-    start_date = '2019-01-01'
-    end_date = '2022-12-31'
+    start_date = '2014-01-01'
+    end_date = '2018-12-31'
 
-    roi = ee.Geometry.Polygon(
-        [[[16.278247539412213, 59.84820707394825],
-          [16.363563243757916, 59.84820707394825],
-          [16.363563243757916, 59.88922451187625],
-          [16.278247539412213, 59.88922451187625]]])
+    roi = get_flacksjon_geometry()
 
     collection = ee.ImageCollection('COPERNICUS/S2')\
         .filterDate(start_date, end_date)\
@@ -324,6 +322,61 @@ def bulk_export_rgb_flacksjon():
     )
 
 
+def get_image_date(image):
+    return ee.Feature(None, {'date': image.date().format('YYYY-MM-dd')})
+
+
+def get_sentinel1_dates(area_of_interest):
+
+    sar_image_collection = ee.ImageCollection('COPERNICUS/S1_GRD')\
+        .filterBounds(area_of_interest)\
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))\
+        .filter(ee.Filter.eq('instrumentMode', 'IW'))\
+        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
+
+    print("Number of SAR images = ", sar_image_collection.size().getInfo())
+
+    dates = sar_image_collection.map(lambda image: get_image_date(image)) \
+        .distinct('date') \
+        .aggregate_array('date') \
+        .getInfo()
+
+    # print(dates)
+
+    return dates
+
+
+def get_sentinel2_dates(area_of_interest):
+
+    optical_image_collection = ee.ImageCollection('COPERNICUS/S2')\
+        .filterBounds(area_of_interest)\
+        .filterMetadata('CLOUDY_PIXEL_PERCENTAGE', 'less_than', 1)
+
+    print("Number of optical images = ", optical_image_collection.size().getInfo())
+
+    dates = optical_image_collection.map(lambda image: get_image_date(image))\
+        .distinct('date')\
+        .aggregate_array('date') \
+        .getInfo()
+
+    # print(dates)
+
+    return dates
+
+
+def get_matching_dates(area_of_interest):
+
+    sentinel1_dates = get_sentinel1_dates(area_of_interest)
+    sentinel2_dates = get_sentinel2_dates(area_of_interest)
+
+    matching_dates = list(set(sentinel1_dates) & set(sentinel2_dates))
+
+    print(f'There are {len(matching_dates)} matching dates')
+    print(matching_dates)
+
+    return matching_dates
+
+
 def main():
     load_dotenv()
     ee.Authenticate()
@@ -340,6 +393,9 @@ def main():
     # bulk_export_sar_flacksjon()
     # bulk_export_ndwi_flacksjon()
     # bulk_export_rgb_flacksjon()
+    # get_sentinel2_dates()
+    # get_sentinel1_dates(get_flacksjon_geometry())
+    # get_matching_dates(get_flacksjon_geometry())
 
 
 start = time.time()
