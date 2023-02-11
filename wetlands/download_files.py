@@ -11,14 +11,27 @@ from unidecode import unidecode
 from wetlands import utils
 
 
-def get_flacksjon_geometry():
-    roi = ee.Geometry.Polygon(
-        [[[16.278247539412213, 59.84820707394825],
-          [16.363563243757916, 59.84820707394825],
-          [16.363563243757916, 59.88922451187625],
-          [16.278247539412213, 59.88922451187625]]])
+def get_area_of_interest(area_name):
 
-    return roi
+    areas_of_interest = {
+        'flacksjon': ee.Geometry.Polygon(
+            [[[16.278247539412213, 59.84820707394825],
+              [16.363563243757916, 59.84820707394825],
+              [16.363563243757916, 59.88922451187625],
+              [16.278247539412213, 59.88922451187625]]]),
+        'ojesjon': ee.Geometry.Polygon(
+            [[[16.223059119542746, 59.86626918485007],
+              [16.223059119542746, 59.84864122850999],
+              [16.25893634732595, 59.84864122850999],
+              [16.25893634732595, 59.86626918485007]]]),
+        'kavsjon': ee.Geometry.Polygon(
+            [[[13.926995174156906, 57.319539025703946],
+              [13.926995174156906, 57.28968100640124],
+              [13.978493587242843, 57.28968100640124],
+              [13.978493587242843, 57.319539025703946]]])
+    }
+
+    return areas_of_interest[area_name]
 
 
 def download_ndwi(region):
@@ -215,12 +228,12 @@ def download_sar_vv_plus_vh(region):
     export_image(nd_vh_vv_image, file_name, region, folder)
 
 
-def bulk_export_sar_flacksjon():
+def bulk_export_sar(area_name):
     start_date = '2014-01-01'
     end_date = '2023-12-31'
     orbit_pass = os.getenv("ORBIT_PASS")
 
-    roi = get_flacksjon_geometry()
+    roi = get_area_of_interest(area_name)
 
     collection = ee.ImageCollection('COPERNICUS/S1_GRD')\
         .filterDate(start_date, end_date)\
@@ -232,12 +245,12 @@ def bulk_export_sar_flacksjon():
         .filter(ee.Filter.eq('resolution', 'H'))\
         .filter(ee.Filter.eq('resolution_meters', 10))
 
-    print('Collection size:', collection.size().getInfo())
+    print('SAR Collection size:', collection.size().getInfo())
 
     # batch export to Google Drive
     geetools.batch.Export.imagecollection.toDrive(
         collection,
-        'bulk_export_flacksjon_2014',
+        f'bulk_export_sar_{area_name}',
         namePattern='{id}',
         scale=10,
         dataType="float",
@@ -249,11 +262,11 @@ def bulk_export_sar_flacksjon():
     )
 
 
-def bulk_export_ndwi_flacksjon():
+def bulk_export_ndwi(area_name):
     start_date = '2014-01-01'
     end_date = '2023-12-31'
 
-    roi = get_flacksjon_geometry()
+    roi = get_area_of_interest(area_name)
 
     def clip_image(image):
         return image.clip(roi)
@@ -281,7 +294,7 @@ def bulk_export_ndwi_flacksjon():
     # batch export to Google Drive
     geetools.batch.Export.imagecollection.toDrive(
         collection,
-        'bulk_export_flacksjon_ndwi',
+        f'bulk_export_{area_name}_ndwi',
         namePattern='{id}',
         scale=10,
         dataType="float",
@@ -293,11 +306,11 @@ def bulk_export_ndwi_flacksjon():
     )
 
 
-def bulk_export_rgb_flacksjon():
+def bulk_export_rgb(area_name):
     start_date = '2014-01-01'
-    end_date = '2018-12-31'
+    end_date = '2023-12-31'
 
-    roi = get_flacksjon_geometry()
+    roi = get_area_of_interest(area_name)
 
     collection = ee.ImageCollection('COPERNICUS/S2')\
         .filterDate(start_date, end_date)\
@@ -310,7 +323,7 @@ def bulk_export_rgb_flacksjon():
     # batch export to Google Drive
     geetools.batch.Export.imagecollection.toDrive(
         collection,
-        'bulk_export_flacksjon_rgb',
+        f'bulk_export_{area_name}_rgb',
         namePattern='{id}',
         scale=10,
         dataType="float",
@@ -385,14 +398,15 @@ def main():
     country_code = os.getenv("COUNTRY_CODE")
     file_name = os.getenv("GEOJSON_FILE")
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
+    study_area = os.getenv("STUDY_AREA")
     utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
     download_ndwi(region)
     download_sar(region)
     # download_sar_vv_plus_vh(region)
-    # bulk_export_sar_flacksjon()
-    # bulk_export_ndwi_flacksjon()
-    # bulk_export_rgb_flacksjon()
+    # bulk_export_sar(study_area)
+    # bulk_export_ndwi(study_area)
+    # bulk_export_rgb(study_area)
     # get_sentinel2_dates()
     # get_sentinel1_dates(get_flacksjon_geometry())
     # get_matching_dates(get_flacksjon_geometry())

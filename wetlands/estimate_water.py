@@ -35,8 +35,9 @@ def load_image(dir_path, band):
 
 def visualize_predicted_image(image, model, device, file_name):
     model_name = os.getenv('MODEL_NAME')
+    study_area = os.getenv('STUDY_AREA')
 
-    images_dir = f'/tmp/descending_{model_name}_exported_images/'
+    images_dir = f'/tmp/descending_{model_name}_{study_area}_exported_images/'
 
     if not os.path.isdir(images_dir):
         os.mkdir(images_dir)
@@ -103,12 +104,13 @@ def get_prediction_image(tiff_file, band, model, device):
 
 def plot_results():
     model_name = os.getenv('MODEL_NAME')
+    study_area = os.getenv('STUDY_AREA')
     # results_file = '/tmp/water_estimates_flacksjon_2018-07.csv'
-    results_file = f'/tmp/descending_{model_name}_water_estimates.csv'
+    results_file = f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv'
     data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date'], index_col=["Date"],  parse_dates=["Date"])
 
     data_frame.plot(title=model_name)
-    plt.savefig(f'/tmp/charts/descending_{model_name}_water_estimates.png')
+    plt.savefig(f'/tmp/charts/descending_{model_name}_{study_area}_water_estimates.png')
     plt.show()
 
 
@@ -125,10 +127,11 @@ def remove_cropped_files():
 
 def update_water_estimates():
     model_name = os.getenv('MODEL_NAME')
+    study_area = os.getenv('STUDY_AREA')
 
     with open('/Users/frape/tmp/cropped_images/cropped_images.txt') as file:
         lines = [line.rstrip() for line in file]
-        results_file = f'/tmp/descending_{model_name}_water_estimates.csv'
+        results_file = f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv'
         data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date', 'File_name'],  parse_dates=["Date"])
         print(data_frame.size)
         print(data_frame.columns.values)
@@ -139,14 +142,15 @@ def update_water_estimates():
         print(data_frame.columns.values)
 
         data_frame.plot(x='Date', y='1.0', kind='scatter', title=model_name)
-        plt.savefig(f'/tmp/charts/scatter_descending_{model_name}_new_water_estimates_filtered.png')
+        plt.savefig(f'/tmp/charts/scatter_descending_{model_name}_{study_area}_new_water_estimates_filtered.png')
         plt.show()
 
-        data_frame.to_csv(f'/tmp/descending_{model_name}_new_water_estimates_filtered.csv')
+        data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_new_water_estimates_filtered.csv')
 
 
 def transform_ndwi_tiff_to_grayscale_png():
-    tiff_dir = '/tmp/bulk_export_flacksjon_ndwi/'
+    study_area = os.getenv('STUDY_AREA')
+    tiff_dir = f'/tmp/bulk_export_{study_area}_ndwi/'
 
     if not os.path.exists(tiff_dir):
         raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
@@ -161,7 +165,8 @@ def transform_ndwi_tiff_to_grayscale_png():
 
 
 def transform_rgb_tiff_to_png():
-    tiff_dir = '/tmp/bulk_export_flacksjon_rgb/'
+    study_area = os.getenv('STUDY_AREA')
+    tiff_dir = f'/tmp/bulk_export_{study_area}_rgb/'
 
     if not os.path.exists(tiff_dir):
         raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
@@ -192,6 +197,7 @@ def full_cycle():
     device = utils.get_device()
     model_file = os.getenv('MODEL_FILE')
     model_name = os.getenv('MODEL_NAME')
+    study_area = os.getenv('STUDY_AREA')
     sar_polarization = os.getenv('SAR_POLARIZATION')
     model = train_model.load_model(model_file, device)
 
@@ -204,7 +210,7 @@ def full_cycle():
     data_frame = pandas.DataFrame(results_list)
     data_frame['Date'] = data_frame['Date'].apply(pandas.to_datetime).dt.date
     print(data_frame.head())
-    data_frame.to_csv(f'/tmp/descending_{model_name}_water_estimates.csv')
+    data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv')
 
 
     # tiff_file = '/tmp/bulk_export_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
