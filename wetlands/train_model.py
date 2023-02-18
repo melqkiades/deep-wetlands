@@ -1,6 +1,5 @@
 
 import os
-import random
 import time
 import matplotlib.pyplot as plt
 import wandb
@@ -12,7 +11,6 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import rasterio as rio
-from rasterio.plot import show
 
 
 # tiles_data.head(3)
@@ -336,8 +334,6 @@ def full_cycle():
     seed = int(os.getenv('RANDOM_SEED'))
     utils.plant_random_seed(seed)
 
-    cwd = os.getenv('TRAIN_CWD_DIR') + '/'
-    data_dir = os.getenv('TRAIN_DATA_DIR') + '/'
     images_dir = os.getenv('SAR_DIR') + '/'
     masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
     tiles_data_file = os.getenv('TILES_FILE')
@@ -448,10 +444,7 @@ def intersection_over_union(y_pred, y_true):
 
 
 def load_and_test():
-    cwd = os.getenv('TRAIN_CWD_DIR') + '/'
-    model_dir = os.getenv('MODELS_DIR') + '/'
     model_file = os.getenv('MODEL_FILE')
-    data_dir = os.getenv('TRAIN_DATA_DIR') + '/'
     images_dir = os.getenv('SAR_DIR') + '/'
     ndwi_masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
     tiles_data_file = os.getenv('TILES_FILE')
