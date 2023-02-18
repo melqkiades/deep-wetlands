@@ -20,6 +20,10 @@ def load_image(dir_path, band):
 
     numpy_image = tiff_image.read(band_index+1)
 
+    # If the image is incomplete and has NaN values we ignore it
+    if np.isnan(numpy_image).any():
+        return None
+
     min_value = np.nanpercentile(numpy_image, 1)
     max_value = np.nanpercentile(numpy_image, 99)
 
@@ -97,6 +101,10 @@ def visualize_predicted_image(image, model, device, file_name):
 def get_prediction_image(tiff_file, band, model, device):
     # tif_file = os.getenv('SAR_TIFF_FILE')
     image = load_image(tiff_file, band)
+
+    if image is None:
+        return None
+
     file_name = os.path.basename(tiff_file)
     results = visualize_predicted_image(image, model, device, file_name)
     return results
@@ -189,7 +197,7 @@ def full_cycle():
     # tiff_dir = '/tmp/new_geo_exports'
 
     if not os.path.exists(tiff_dir):
-        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
+        raise FileNotFoundError(f'The folder containing the TIFF files does not exist: {tiff_dir}')
 
     filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
     print(filenames)
@@ -202,10 +210,17 @@ def full_cycle():
     model = train_model.load_model(model_file, device)
 
     results_list = []
+    incomplete_images = 0
 
     for tiff_file in tqdm.tqdm(sorted(filenames)):
         results = get_prediction_image(tiff_dir + '/' + tiff_file, sar_polarization, model, device)
-        results_list.append(results)
+
+        if results is None:
+            incomplete_images += 1
+        else:
+            results_list.append(results)
+
+    print(f'There were a total of {incomplete_images} incomplete images')
 
     data_frame = pandas.DataFrame(results_list)
     data_frame['Date'] = data_frame['Date'].apply(pandas.to_datetime).dt.date
@@ -224,8 +239,8 @@ def main():
     full_cycle()
     plot_results()
     update_water_estimates()
-    transform_ndwi_tiff_to_grayscale_png()
-    transform_rgb_tiff_to_png()
+    # transform_ndwi_tiff_to_grayscale_png()
+    # transform_rgb_tiff_to_png()
 
 
 start = time.time()
