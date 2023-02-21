@@ -342,13 +342,13 @@ def full_cycle():
     tiles_data = pd.read_csv(tiles_data_file)
 
     dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir)
-    train_batch = next(iter(dataloaders['train']))
+    # train_batch = next(iter(dataloaders['train']))
     # visualize_batch(train_batch, batch_size)
 
     model = Unet(in_channels=1)
     print(model)
-    input, target = next(iter(dataloaders['train']))
-    pred = model(input)
+    # input, target = next(iter(dataloaders['train']))
+    # pred = model(input)
     criterion = DiceLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
