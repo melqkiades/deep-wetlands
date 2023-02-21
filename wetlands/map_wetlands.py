@@ -1,10 +1,11 @@
+import json
 import os
 import time
 
 import numpy as np
 import rasterio as rio
 import torch
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
 from rasterio.windows import Window
 import geopandas as gpd
@@ -150,7 +151,6 @@ def polygonize_raster_full(cwd, pred_file, shape_name, start_date):
 
 
 def full_cycle():
-    load_dotenv()
 
     cwd = os.getenv('TRAIN_CWD_DIR') + '/'
     start_date = os.getenv('START_DATE')
@@ -175,6 +175,9 @@ def full_cycle():
 
 
 def main():
+    load_dotenv()
+    config = dotenv_values(".env")
+    print(json.dumps(config, indent=4))
     full_cycle()
 
 

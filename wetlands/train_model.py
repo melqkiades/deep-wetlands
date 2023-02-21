@@ -1,9 +1,9 @@
-
+import json
 import os
 import time
 import matplotlib.pyplot as plt
 import wandb
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from tqdm.notebook import tqdm
 import pandas as pd
 import numpy as np
@@ -442,6 +442,8 @@ def load_and_test():
 
 def main():
     load_dotenv()
+    config = dotenv_values(".env")
+    print(json.dumps(config, indent=4))
 
     full_cycle()
     # load_and_test()

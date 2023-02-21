@@ -1,3 +1,4 @@
+import json
 import os
 import time
 
@@ -8,7 +9,7 @@ import rasterio
 import rasterio as rio
 import rasterio.mask
 from PIL import Image
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
@@ -137,6 +138,8 @@ def full_cycle_with_visualization():
 
 def main():
     load_dotenv()
+    config = dotenv_values(".env")
+    print(json.dumps(config, indent=4))
 
     full_cycle()
     # full_cycle_with_visualization()

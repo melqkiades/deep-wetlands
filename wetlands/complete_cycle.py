@@ -1,12 +1,15 @@
+import json
 import time
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 
 from wetlands import generate_ndwi, generate_sar, train_model, map_wetlands
 
 
 def main():
     load_dotenv()
+    config = dotenv_values(".env")
+    print(json.dumps(config, indent=4))
 
     generate_ndwi.full_cycle()
     generate_sar.full_cycle()

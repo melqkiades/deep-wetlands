@@ -1,3 +1,4 @@
+import json
 import os
 import time
 
@@ -12,7 +13,7 @@ from tqdm import tqdm
 
 from wetlands import utils, viz_utils, geo_utils
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 
 
 def export_ndwi_mask_data(tiles, tif_file):
@@ -150,6 +151,8 @@ def full_cycle_with_visualization():
 
 def main():
     load_dotenv()
+    config = dotenv_values(".env")
+    print(json.dumps(config, indent=4))
 
     full_cycle()
     # full_cycle_with_visualization()
