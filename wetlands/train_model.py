@@ -409,7 +409,8 @@ def full_cycle():
             model_file = f'{run_name}_{model_name}.pth'
             save_model(model, model_dir, model_file)
 
-    model_file = f'{run_name}_{os.getenv("MODEL_FILE")}'
+    model_name = os.getenv("MODEL_NAME")
+    model_file = f'{run_name}_{model_name}'
     save_model(model, model_dir, model_file)
 
     evaluate_single_image(model, tiles_data, images_dir, masks_dir, device)
