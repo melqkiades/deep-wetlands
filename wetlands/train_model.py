@@ -12,30 +12,6 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import rasterio as rio
 
-
-# tiles_data.head(3)
-
-# index = tiles_data.iloc[10]['id']
-# image_path = images_dir + str(index) + '-sar.tif'
-# mask_path = masks_dir + str(index) + '-ndwi_mask.tif'
-#
-# # Open image file using Rasterio
-# sar_image = rio.open(image_path)
-# mask = rio.open(mask_path)
-#
-#
-# # fig, ax = plt.subplots(1, 2, figsize=(8,8))
-# # ax[0].imshow(image)
-# # ax[1].imshow(mask);
-#
-# # Plot image and corresponding boundary
-# # fig, ax = plt.subplots(1, 2, figsize=(8,8))
-# # show(sar_image, ax=ax);
-# fig, ax = plt.subplots(1, 2, figsize=(8,8))
-# show(sar_image, ax=ax[0], cmap='gray')
-# show(mask, ax=ax[1])
-# # print(sar_image.count)
-# print(sar_image.read(1).shape)
 from wetlands import utils
 from wetlands.jaccard_similarity import calculate_intersection_over_union
 
@@ -329,9 +305,31 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 
 def full_cycle():
-    wandb.init(project="test-project", entity="deep-wetlands")
-
+    n_epochs = int(os.getenv('EPOCHS'))
+    learning_rate = float(os.getenv('LEARNING_RATE'))
     seed = int(os.getenv('RANDOM_SEED'))
+    batch_size = int(os.getenv('BATCH_SIZE'))
+    num_workers = int(os.getenv('NUM_WORKERS'))
+    model_dir = os.getenv('MODELS_DIR')
+    region = os.getenv('REGION_ASCII_NAME')
+    date = os.getenv('START_DATE')
+    polarization = os.getenv('SAR_POLARIZATION')
+    orbit_pass = os.getenv('ORBIT_PASS')
+
+    config = {
+        "learning_rate": learning_rate,
+        "epochs": n_epochs,
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+        "random_seed": seed,
+        "region": region,
+        "date": date,
+        "polarization": polarization,
+        "orbit_pass": orbit_pass,
+    }
+
+    wandb.init(project="test-project", entity="deep-wetlands", config=config)
+    run_name = wandb.run.name
     utils.plant_random_seed(seed)
 
     images_dir = os.getenv('SAR_DIR') + '/'
@@ -343,9 +341,6 @@ def full_cycle():
 
     tiles_data = pd.read_csv(tiles_data_file)
 
-    batch_size = int(os.getenv('BATCH_SIZE'))
-    num_workers = int(os.getenv('NUM_WORKERS'))
-
     dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir)
     train_batch = next(iter(dataloaders['train']))
     # visualize_batch(train_batch, batch_size)
@@ -354,20 +349,8 @@ def full_cycle():
     print(model)
     input, target = next(iter(dataloaders['train']))
     pred = model(input)
-
-    n_epochs = int(os.getenv('EPOCHS'))
-    learning_rate = float(os.getenv('LEARNING_RATE'))
-    model_dir = os.getenv('MODELS_DIR')
     criterion = DiceLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-    wandb.config = {
-        "learning_rate": learning_rate,
-        "epochs": n_epochs,
-        "batch_size": batch_size,
-        "num_workers": num_workers,
-        "random_seed": seed,
-    }
 
     model.to(device)
     for epoch in range(1, n_epochs + 1):
@@ -423,10 +406,10 @@ def full_cycle():
 
         if epoch == 2 or epoch % 5 == 0:
             model_name = utils.generate_model_file_name(epoch)
-            model_file = model_name + '.pth'
+            model_file = f'{run_name}_{model_name}.pth'
             save_model(model, model_dir, model_file)
 
-    model_file = os.getenv('MODEL_FILE')
+    model_file = f'{run_name}_{os.getenv("MODEL_FILE")}'
     save_model(model, model_dir, model_file)
 
     evaluate_single_image(model, tiles_data, images_dir, masks_dir, device)
