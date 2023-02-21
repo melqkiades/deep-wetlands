@@ -176,7 +176,7 @@ def full_cycle():
 
 def main():
     load_dotenv()
-    config = dotenv_values(".env")
+    config = dotenv_values()
     print(json.dumps(config, indent=4))
     full_cycle()
 

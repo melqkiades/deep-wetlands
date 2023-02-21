@@ -442,7 +442,7 @@ def load_and_test():
 
 def main():
     load_dotenv()
-    config = dotenv_values(".env")
+    config = dotenv_values()
     print(json.dumps(config, indent=4))
 
     full_cycle()

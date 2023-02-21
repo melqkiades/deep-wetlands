@@ -8,7 +8,7 @@ from wetlands import generate_ndwi, generate_sar, train_model, map_wetlands
 
 def main():
     load_dotenv()
-    config = dotenv_values(".env")
+    config = dotenv_values()
     print(json.dumps(config, indent=4))
 
     generate_ndwi.full_cycle()
