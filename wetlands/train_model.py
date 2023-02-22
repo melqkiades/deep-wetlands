@@ -30,18 +30,10 @@ class CFDDataset(Dataset):
         mask_path = self.masks_dir + str(index_) + '-ndwi_mask.tif'
 
         # Read image
-        # image = plt.imread(image_path)
         image = rio.open(image_path).read()
-        # print('former image shape', image.shape)
-        # image = image.transpose((2, 1, 0))
-        # print('new image shape', image.shape)
 
         # Read image
-        # mask = plt.imread(mask_path)
         mask = rio.open(mask_path).read()
-        # print('former mask shape', mask.shape)
-        # mask = mask.transpose((1, 0))[None, :]
-        # print('new mask shape', mask.shape)
 
         # Convert to Pytorch tensor
         image_tensor = torch.from_numpy(image.astype(np.float32))
@@ -232,19 +224,15 @@ def evaluate(model, dataloader, criterion, device):
 
 
 def save_model(model, model_dir, model_file):
-    # model_dir = cwd + "models/"
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
 
-    # model_file = model_dir + 'best_model_20220810.pth'
-    torch.save(model.state_dict(), model_file)
-    print('Model successfully saved to {}'.format(model_file))
+    model_path = os.path.join(model_dir, model_file)
+    torch.save(model.state_dict(), model_path)
+    print(f'Model successfully saved to {model_path}')
 
 
 def load_model(model_file, device):
-    # model_dir = "./drive/My Drive/Colab Notebooks/Crop Field Delineation/models/"
-    # model_file = model_dir + 'best_model_20220810.pth'
-
     loaded_model = Unet(in_channels=1)
     loaded_model.to(device)
     loaded_model.load_state_dict(torch.load(model_file, map_location=device))
@@ -262,9 +250,6 @@ def plot_single_sar_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
     image_path = images_dir + str(index) + '-sar.tif'
     image = rio.open(image_path).read()
     print(image.shape)
-    # plt.imshow(image[0], cmap='gray')
-    # plt.show()
-    # plt.clf()
 
 
 def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device):
@@ -274,17 +259,11 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
     image_path = images_dir + str(index) + '-sar.tif'
     sar_image = rio.open(image_path).read()
     print(sar_image.shape)
-    # plt.imshow(image[0], cmap='gray')
-    # plt.show()
-    # plt.clf()
 
     ndwi_image_path = ndwi_masks_dir + str(index) + '-ndwi_mask.tif'
     ndwi_image = rio.open(ndwi_image_path).read()
     print(ndwi_image.shape)
     print(ndwi_image_path)
-    # plt.imshow(ndwi_image[0], cmap='spring')
-    # plt.show()
-    # plt.clf()
 
     # sar_image = sar_image.transpose((2, 1, 0))[None, :]
     batch_sar_image = sar_image[None, :]
@@ -342,13 +321,9 @@ def full_cycle():
     tiles_data = pd.read_csv(tiles_data_file)
 
     dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir)
-    # train_batch = next(iter(dataloaders['train']))
-    # visualize_batch(train_batch, batch_size)
 
     model = Unet(in_channels=1)
     print(model)
-    # input, target = next(iter(dataloaders['train']))
-    # pred = model(input)
     criterion = DiceLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -410,7 +385,7 @@ def full_cycle():
             save_model(model, model_dir, model_file)
 
     model_name = os.getenv("MODEL_NAME")
-    model_file = f'{run_name}_{model_name}'
+    model_file = f'{run_name}_{model_name}.pth'
     save_model(model, model_dir, model_file)
 
     evaluate_single_image(model, tiles_data, images_dir, masks_dir, device)
