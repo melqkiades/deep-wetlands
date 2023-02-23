@@ -35,6 +35,8 @@ def export_sar_data(tiles, tif_file):
             # print('id', name)
             # print(type(src), type(shape))
             out_image, out_transform = rio.mask.mask(src, shape, crop=True)
+            if np.isnan(out_image).any():
+                raise ValueError(f'An image contains NaN values: {name}')
             # Crop out black (zero) border
             # _, x_nonzero, y_nonzero = np.nonzero(out_image)
             # out_image = out_image[
