@@ -77,6 +77,25 @@ def download_ndwi(region):
     newImageTask = export_image(new_image, file_name, region, folder)
 
 
+def download_ndwi_range(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI_RANGE')
+
+    folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_range'
+    newImageTask = export_image(ndwi, file_name, region, folder)
+
+
 def get_region():
     geojson_file = os.getenv("GEOJSON_FILE")
 
@@ -416,8 +435,9 @@ def main():
     study_area = os.getenv("STUDY_AREA")
     utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
-    download_ndwi(region)
-    download_sar(region)
+    # download_ndwi(region)
+    # download_sar(region)
+    download_ndwi_range(region)
     # download_sar_vv_plus_vh(region)
     # bulk_export_sar(study_area)
     # bulk_export_ndwi(study_area)
