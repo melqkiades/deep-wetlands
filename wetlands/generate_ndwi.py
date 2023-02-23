@@ -18,9 +18,12 @@ from dotenv import load_dotenv, dotenv_values
 
 def export_ndwi_mask_data(tiles, tif_file):
 
-    minValue = 0.5
-    maxValue = 1.0
     export_folder = os.getenv('NDWI_MASK_DIR')
+
+    with rio.open(tif_file) as src:
+        dataset_array = src.read()
+        minValue = np.nanpercentile(dataset_array, 1)
+        maxValue = np.nanpercentile(dataset_array, 99)
 
     for index in tqdm(range(len(tiles)), total=len(tiles)):
 
