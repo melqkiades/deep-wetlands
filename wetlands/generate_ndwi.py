@@ -93,11 +93,12 @@ def full_cycle():
     tif_file = os.getenv('NDWI_TIFF_FILE')
     country_code = os.getenv('COUNTRY_CODE')
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
+    patch_size = int(os.getenv("PATCH_SIZE"))
 
     utils.download_country_boundaries(country_code, region_admin_level, file_name)
     geoboundary = utils.get_region_boundaries(region_name, file_name)
 
-    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary)
+    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
     # print(tiles.columns.values)
     export_ndwi_mask_data(tiles, tif_file)
     # tiles['split'] = 'train'
@@ -127,7 +128,7 @@ def full_cycle_with_visualization():
     output_file = cwd + '{}.geojson'.format(region_name)
     tiles = geo_utils.generate_tiles(tif_file, output_file, region_name, size=patch_size)
     viz_utils.visualize_tiles(geoboundary, region_name, tif_file, tiles)
-    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary)
+    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
     # viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
     # viz_utils.show_crop(tif_file, [tiles.iloc[20]['geometry']])
     # viz_utils.show_crop(tif_file, [tiles.iloc[30]['geometry']])

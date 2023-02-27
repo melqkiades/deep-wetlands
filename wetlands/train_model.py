@@ -295,7 +295,7 @@ def full_cycle():
     polarization = os.getenv('SAR_POLARIZATION')
     orbit_pass = os.getenv('ORBIT_PASS')
     patch_size = int(os.getenv('PATCH_SIZE'))
-    ndwi_input = int(os.getenv('NDWI_INPUT'))
+    ndwi_input = os.getenv('NDWI_INPUT')
 
     config = {
         "learning_rate": learning_rate,

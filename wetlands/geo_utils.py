@@ -7,8 +7,8 @@ import geopandas as gpd
 from shapely.geometry import box
 
 
-def generate_tiles(image_file, output_file, area_str, size=64):
-    """Generates 64 x 64 polygon tiles.
+def generate_tiles(image_file, output_file, area_str, size):
+    """Generates size x size polygon tiles.
 
     Args:
       image_file (str): Image file path (.tif)
@@ -65,12 +65,12 @@ def generate_tiles(image_file, output_file, area_str, size=64):
     return results
 
 
-def get_tiles(shape_name, tif_file, geoboundary):
+def get_tiles(shape_name, tif_file, geoboundary, size):
     cwd = os.getenv("CWD_DIR")
     output_file = cwd + '/{}.geojson'.format(shape_name)
     # output_file = output_file.replace(' ', '_')
 
-    tiles = generate_tiles(tif_file, output_file, shape_name, size=64)
+    tiles = generate_tiles(tif_file, output_file, shape_name, size)
 
     boundary = geoboundary[geoboundary.shapeName == shape_name]
 
