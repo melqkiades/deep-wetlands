@@ -18,6 +18,7 @@ from wetlands import utils, viz_utils, geo_utils
 
 def export_sar_data(tiles, tif_file):
     export_folder = os.getenv('SAR_DIR')
+    patch_size = int(os.getenv('PATCH_SIZE'))
 
     with rio.open(tif_file) as src:
         dataset_array = src.read()
@@ -44,12 +45,12 @@ def export_sar_data(tiles, tif_file):
             #     np.min(x_nonzero):np.max(x_nonzero),
             #     np.min(y_nonzero):np.max(y_nonzero)
             # ]
-            if out_image.shape[1] == 65:
+            if out_image.shape[1] == patch_size + 1:
                 out_image = out_image[:, :-1, :]
-            if out_image.shape[2] == 65:
+            if out_image.shape[2] == patch_size + 1:
                 out_image = out_image[:, :, 1:]
 
-            if out_image.shape[1] != 64 or out_image.shape[2] != 64:
+            if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
                 continue
 
             # Min-max scale the data to range [0, 1]
@@ -122,13 +123,14 @@ def full_cycle_with_visualization():
     export_folder = os.getenv('SAR_DIR')
     cwd = os.getenv('CWD_DIR')
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
+    patch_size = int(os.getenv('PATCH_SIZE'))
 
     utils.download_country_boundaries(country_code, region_admin_level, file_name)
     geoboundary = utils.get_region_boundaries(region_name, file_name)
     utils.show_region_boundaries(geoboundary, region_name)
     viz_utils.visualize_sentinel2_image(geoboundary, region_name, sar_file)
     output_file = cwd + '{}.geojson'.format(region_name)
-    tiles = geo_utils.generate_tiles(sar_file, output_file, region_name, size=64)
+    tiles = geo_utils.generate_tiles(sar_file, output_file, region_name, size=patch_size)
     viz_utils.visualize_tiles(geoboundary, region_name, sar_file, tiles)
     tiles = geo_utils.get_tiles(region_name, sar_file, geoboundary)
     viz_utils.show_crop(sar_file, [tiles.iloc[10]['geometry']])

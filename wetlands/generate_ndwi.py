@@ -19,6 +19,7 @@ from dotenv import load_dotenv, dotenv_values
 def export_ndwi_mask_data(tiles, tif_file):
 
     export_folder = os.getenv('NDWI_MASK_DIR')
+    patch_size = int(os.getenv('PATCH_SIZE'))
 
     with rio.open(tif_file) as src:
         dataset_array = src.read()
@@ -43,12 +44,12 @@ def export_ndwi_mask_data(tiles, tif_file):
             #     np.min(x_nonzero):np.max(x_nonzero),
             #     np.min(y_nonzero):np.max(y_nonzero)
             # ]
-            if out_image.shape[1] == 65:
+            if out_image.shape[1] == patch_size + 1:
                 out_image = out_image[:, :-1, :]
-            if out_image.shape[2] == 65:
+            if out_image.shape[2] == patch_size + 1:
                 out_image = out_image[:, :, 1:]
 
-            if out_image.shape[1] != 64 or out_image.shape[2] != 64:
+            if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
                 continue
 
             # Min-max scale the data to range [0, 1]
@@ -113,6 +114,7 @@ def full_cycle_with_visualization():
     country_code = os.getenv('COUNTRY_CODE')
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
     export_folder = os.getenv('NDWI_MASK_DIR')
+    patch_size = int(os.getenv('PATCH_SIZE'))
     cwd = os.getenv('CWD_DIR')
     print('Shape name', region_name)
 
@@ -123,7 +125,7 @@ def full_cycle_with_visualization():
     viz_utils.visualize_sentinel2_image(geoboundary, region_name, tif_file)
 
     output_file = cwd + '{}.geojson'.format(region_name)
-    tiles = geo_utils.generate_tiles(tif_file, output_file, region_name, size=64)
+    tiles = geo_utils.generate_tiles(tif_file, output_file, region_name, size=patch_size)
     viz_utils.visualize_tiles(geoboundary, region_name, tif_file, tiles)
     tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary)
     # viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])

@@ -294,10 +294,12 @@ def full_cycle():
     date = os.getenv('START_DATE')
     polarization = os.getenv('SAR_POLARIZATION')
     orbit_pass = os.getenv('ORBIT_PASS')
+    patch_size = int(os.getenv('PATCH_SIZE'))
 
     config = {
         "learning_rate": learning_rate,
         "epochs": n_epochs,
+        "patch_size": patch_size,
         "batch_size": batch_size,
         "num_workers": num_workers,
         "random_seed": seed,
