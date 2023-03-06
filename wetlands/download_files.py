@@ -44,6 +44,27 @@ def get_area_of_interest(area_name):
               [16.343431617417117, 57.14776534925009],
               [16.36137023130872, 57.14776534925009],
               [16.36137023130872, 57.15591261704456]]]),
+        'huge_sweden': ee.Geometry.Polygon(
+            [[[13.847571015930042, 62.112298691800014],
+              [12.052864172203748, 58.768875396751994],
+              [13.78167204881429, 56.13588308174233],
+              [16.558946861713117, 60.44050284414736]]]),
+        'medium_sweden': ee.Geometry.Polygon(
+            [[[12.855710204458406, 60.22361199467255],
+              [12.855710204458406, 58.60278344449708],
+              [15.272702391958406, 58.60278344449708],
+              [15.272702391958406, 60.22361199467255]]]),
+        'small_sweden': ee.Geometry.Polygon(
+            [[[12.855710204458406, 59.478737352511644],
+              [12.855710204458406, 58.60278344449708],
+              [15.272702391958406, 58.60278344449708],
+              [15.272702391958406, 59.478737352511644]]]),
+        'angarn': ee.Geometry.Polygon(
+            [[[18.136216336105946, 59.540488418602365],
+              [18.18448168655358, 59.54061727336778],
+              [18.18441472424892, 59.55704443997286],
+              [18.13634570498334, 59.55691564499851],
+              [18.136216336105946, 59.540488418602365]]]),
     }
 
     return areas_of_interest[area_name]
@@ -74,6 +95,7 @@ def download_ndwi(region):
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
     file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_mask'
+    # file_name = 'small_sweden_ndwi_mask'
     newImageTask = export_image(new_image, file_name, region, folder)
 
 
@@ -157,7 +179,8 @@ def export_image(image, filename, region, folder):
         image=image,
         driveFolder=folder,
         scale=10,
-        region=region.geometry(),
+        # region=region.geometry(),
+        region=region,
         description=unidecode(filename),
         fileFormat='GeoTIFF',
         crs='EPSG:4326',
@@ -207,6 +230,7 @@ def download_sar(region):
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
     file_name = f'{shape_name}_{aggregate_function}_{start_date}_sar_{polarization}'
+    # file_name = f'small_sweden_sar_{polarization}'
     task = export_image(sar_image, file_name, region, folder)
 
 
@@ -435,8 +459,9 @@ def main():
     study_area = os.getenv("STUDY_AREA")
     utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
+    # region = get_area_of_interest('small_sweden')
     # download_ndwi(region)
-    # download_sar(region)
+    download_sar(region)
     download_ndwi_range(region)
     # download_sar_vv_plus_vh(region)
     # bulk_export_sar(study_area)
