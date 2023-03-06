@@ -46,32 +46,25 @@ def visualize_predicted_image(image, model, device, file_name):
     if not os.path.isdir(images_dir):
         os.mkdir(images_dir)
 
-    # n, step_size = 7, 64
-    # width, height = step_size * n, step_size * n
-    step_size = 64
-    width = image.shape[0] - image.shape[0] % step_size
-    height = image.shape[1] - image.shape[1] % step_size
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    width = image.shape[0] - image.shape[0] % patch_size
+    height = image.shape[1] - image.shape[1] % patch_size
     pred_mask = np.zeros(tuple((width, height)))
 
-    for h in range(0, height, step_size):
-        for w in range(0, width, step_size):
-            image_crop = image[w:w + step_size, h:h + step_size]
+    for h in range(0, height, patch_size):
+        for w in range(0, width, patch_size):
+            image_crop = image[w:w + patch_size, h:h + patch_size]
             image_crop = image_crop[None, :]
             binary_image = np.where(image_crop.sum(2) > 0, 1, 0)
-
-            # image_crop = torch.from_numpy(
-            #     (image_crop * 255.0).astype("uint8").transpose((2, 1, 0)).astype(np.float32)
-            # ).to(device)[None, :]
             image_crop = torch.from_numpy(image_crop.astype(np.float32)).to(device)[None, :]
 
             pred = model(image_crop).cpu().detach().numpy()
             pred = (pred).squeeze() * binary_image
             pred = np.where(pred < 0.5, 0, 1)
-            pred_mask[w:w + step_size, h:h + step_size] = pred
+            pred_mask[w:w + patch_size, h:h + patch_size] = pred
 
     unique, counts = np.unique(pred_mask, return_counts=True)
     results = dict(zip(unique, counts))
-    # print('Date', image_date, 'Counts = ', results)
     image_date = file_name[17:25]
     satellite = file_name[0:3]
     results['Date'] = image_date
@@ -191,10 +184,9 @@ def transform_rgb_tiff_to_png():
 def full_cycle():
     load_dotenv()
 
-    # tiff_dir = '/tmp/bulk_export_flacksjon_2018-07'
     # tiff_dir = '/tmp/bulk_export_flacksjon'
+    # tiff_dir = '/tmp/bulk_export_flacksjon_2018-07'
     tiff_dir = os.getenv('BULK_EXPORT_DIR')
-    # tiff_dir = '/tmp/new_geo_exports'
 
     if not os.path.exists(tiff_dir):
         raise FileNotFoundError(f'The folder containing the TIFF files does not exist: {tiff_dir}')
@@ -204,6 +196,7 @@ def full_cycle():
 
     device = utils.get_device()
     model_file = os.getenv('MODEL_FILE')
+    # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     model_name = os.getenv('MODEL_NAME')
     study_area = os.getenv('STUDY_AREA')
     sar_polarization = os.getenv('SAR_POLARIZATION')
@@ -226,7 +219,6 @@ def full_cycle():
     data_frame['Date'] = data_frame['Date'].apply(pandas.to_datetime).dt.date
     print(data_frame.head())
     data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv')
-
 
     # tiff_file = '/tmp/bulk_export_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
     # get_prediction_image(tiff_file, 'VH')

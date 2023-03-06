@@ -16,16 +16,6 @@ from wetlands import train_model, utils
 
 
 def load_image(dir_path):
-#     image_bands = []
-#     for band in range(1, 4):
-#         array = rio.open(dir_path).read(band)
-#         array[np.isnan(array)] = 0
-#         image_bands.append(normalize(array))
-
-#     image = np.dstack(image_bands)
-#     image = rio.open(dir_path).read(1)
-#     image = normalize(image)
-#     return image
 
     tiff_image = rio.open(dir_path)
     numpy_image = tiff_image.read(1)
@@ -56,28 +46,22 @@ def visualize_sentinel1(cwd, shape_name, start_date):
 
 def visualize_predicted_image(image, model, device):
 
-    # n, step_size = 7, 64
-    # width, height = step_size * n, step_size * n
-    step_size = 64
-    width = image.shape[0] - image.shape[0] % step_size
-    height = image.shape[1] - image.shape[1] % step_size
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    width = image.shape[0] - image.shape[0] % patch_size
+    height = image.shape[1] - image.shape[1] % patch_size
     pred_mask = np.zeros(tuple((width, height)))
 
-    for h in range(0, height, step_size):
-        for w in range(0, width, step_size):
-            image_crop = image[w:w + step_size, h:h + step_size]
+    for h in range(0, height, patch_size):
+        for w in range(0, width, patch_size):
+            image_crop = image[w:w + patch_size, h:h + patch_size]
             image_crop = image_crop[None, :]
             binary_image = np.where(image_crop.sum(2) > 0, 1, 0)
-
-            # image_crop = torch.from_numpy(
-            #     (image_crop * 255.0).astype("uint8").transpose((2, 1, 0)).astype(np.float32)
-            # ).to(device)[None, :]
             image_crop = torch.from_numpy(image_crop.astype(np.float32)).to(device)[None, :]
 
             pred = model(image_crop).cpu().detach().numpy()
             pred = (pred).squeeze() * binary_image
             pred = np.where(pred < 0.5, 0, 1)
-            pred_mask[w:w + step_size, h:h + step_size] = pred
+            pred_mask[w:w + patch_size, h:h + patch_size] = pred
 
     fig, ax = plt.subplots(figsize=(10, 10))
     pred_mask = 1 - pred_mask
@@ -154,23 +138,17 @@ def full_cycle():
 
     cwd = os.getenv('TRAIN_CWD_DIR') + '/'
     start_date = os.getenv('START_DATE')
-    end_date = os.getenv('END_DATE')
     shape_name = os.getenv('REGION_NAME')
-    # n, step_size = 70, 64
-    step_size = 64
-    # width, height = step_size * n, step_size * n
-    # tif_file = cwd + '{}-sar-{}.tif'.format(shape_name, start_date)
+    patch_size = int(os.getenv('PATCH_SIZE'))
     tif_file = os.getenv('SAR_TIFF_FILE')
     image = load_image(tif_file)
     device = utils.get_device()
-    model_dir = os.getenv('MODELS_DIR') + '/'
-    # model_file = model_dir + 'best_model_20221014.pth'
-    model_file = os.getenv('MODEL_FILE')
-    # pred_file = cwd + 'temp.tif'
+    # model_file = os.getenv('MODEL_FILE')
+    model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     pred_file = os.getenv('PREDICTIONS_FILE')
     model = train_model.load_model(model_file, device)
     pred_mask = visualize_predicted_image(image, model, device)
-    generate_raster_image(pred_mask, pred_file, tif_file, step_size)
+    generate_raster_image(pred_mask, pred_file, tif_file, patch_size)
     polygonize_raster_full(cwd, pred_file, shape_name, start_date)
 
 
