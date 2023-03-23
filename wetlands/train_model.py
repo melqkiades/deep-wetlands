@@ -328,6 +328,7 @@ def full_cycle():
 
     model = Unet(in_channels=1)
     print(model)
+    print('Model parameters', sum(param.numel() for param in model.parameters()))
     criterion = DiceLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
