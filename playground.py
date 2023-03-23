@@ -5,12 +5,18 @@ import cv2
 import numpy
 import pandas
 import rasterio
+import torch
 from PIL import Image
 import rasterio as rio
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
+from osgeo import gdal
 from rasterio.plot import show
 from scipy import ndimage
+from torch.utils.data import Dataset
+from torchvision.transforms import transforms
+
+from wetlands import estimate_water
 
 
 def clip_matrix():
@@ -276,6 +282,167 @@ def visualize_ndwi_tiff():
     plt.show()
 
 
+def detect_incomplete_image():
+
+    base_dir = '/tmp/bulk_export_sar_karlhulteson/'
+    image1 = 'S1A_IW_GRDH_1SDV_20160529T050703_20160529T050728_011469_011790_1826.tif'
+    image2 = 'S1A_IW_GRDH_1SDV_20160529T050728_20160529T050753_011469_011790_A126.tif'
+    image3 = 'S1A_IW_GRDH_1SDV_20151031T051530_20151031T051554_008392_00BDA5_0400.tif'
+
+    path1 = base_dir + image1
+    path2 = base_dir + image2
+    path3 = base_dir + image3
+
+    sar_polarization = os.getenv('SAR_POLARIZATION')
+    # image_array = estimate_water.load_image(path3, sar_polarization)
+    #
+    # print(image_array.shape)
+
+
+def check_for_nans_inside_images():
+    masks_dir = os.getenv('NDWI_MASK_DIR')
+    num_incomplete_images = 0
+    for file in os.listdir(masks_dir):
+        if file.endswith(".tif"):
+            file_path = os.path.join(masks_dir, file)
+
+            tiff_image = rio.open(file_path)
+            # band = 'NDWI'
+
+            numpy_image = tiff_image.read()
+
+            # If the image is incomplete and has NaN values we ignore it
+            if numpy.isnan(numpy_image).any():
+                print(file_path)
+                print('Incomplete image')
+                num_incomplete_images += 1
+                # return None
+
+    print(f'There were a total of {num_incomplete_images} incomplete images')
+
+
+def min_max_scaler():
+
+    my_array = numpy.zeros((8,))
+    print(my_array)
+    config = dotenv_values(".env")
+    # print(type(config))
+    # print(config)
+
+    import pprint
+    import json
+    pprint.pprint(config, sort_dicts=False)
+
+    print(json.dumps(config, indent=4))
+
+
+def transform_dataset():
+    class experimental_dataset(Dataset):
+
+        def __init__(self, data, transform):
+            self.data = data
+            self.transform = transform
+
+        def __len__(self):
+            return len(self.data.shape[0])
+
+        def __getitem__(self, idx):
+            item = self.data[idx]
+            item = self.transform(item)
+            return item
+
+    transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor()
+    ])
+
+    x = torch.rand(8, 1, 2, 2)
+    print(x)
+
+    print('Begin of transformations')
+
+    dataset = experimental_dataset(x, transform)
+
+    for i, item in enumerate(dataset):
+        print('Transformation ', i)
+        print(item)
+
+
+def merge_geotiff():
+
+    # file1 = '/tmp/medium_tiff/medium_sweden_ndwi_mask-0000000000-0000000000.tif'
+    # file2 = '/tmp/medium_tiff/medium_sweden_ndwi_mask-0000000000-0000023296.tif'
+    folder = '/tmp/huge_sweden/'
+    # files_to_mosaic = [file1, file2]  # However many you want.
+
+    files_to_mosaic = [
+        folder + 'huge_sweden_ndwi_mask-0000000000-0000000000.tif',
+        folder + 'huge_sweden_ndwi_mask-0000000000-0000023296.tif',
+        folder + 'huge_sweden_ndwi_mask-0000000000-0000046592.tif',
+        folder + 'huge_sweden_ndwi_mask-0000023296-0000000000.tif',
+        folder + 'huge_sweden_ndwi_mask-0000023296-0000023296.tif',
+        folder + 'huge_sweden_ndwi_mask-0000023296-0000046592.tif',
+        folder + 'huge_sweden_ndwi_mask-0000046592-0000000000.tif',
+        folder + 'huge_sweden_ndwi_mask-0000046592-0000023296.tif',
+        folder + 'huge_sweden_ndwi_mask-0000046592-0000046592.tif',
+    ]
+
+    g = gdal.Warp("/tmp/huge_sweden/all_huge_sweden_ndwi_mask.tif", files_to_mosaic, format="GTiff",
+                  options=["COMPRESS=LZW", "TILED=YES"])  # if you want
+    g = None  # Close file and flush to disk
+
+
+def otsu_segmentation():
+
+    # image_path = '/tmp/otsu/flacksjon_20180622.png'
+    # image_path = '/tmp/otsu/flacksjon_20180424.png'
+    # image_path = '/tmp/otsu/flacksjon_20200804.png'
+    # image_path = '/tmp/otsu/flacksjon_20211121.png'
+    image_path = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20141005T052245_20141005T052310_002690_003012_53A0.tif'
+
+    # # read the input image as a gray image
+    # img = cv2.imread(image_path, 0)
+    #
+    # # Apply Otsu's thresholding
+    # _, th = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    #
+    # # display the output image
+    # cv2.imshow("Otsu's Thresholding", th)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    # img = cv2.imread(image_path, 0)
+    band = os.getenv('SAR_POLARIZATION')
+    img = estimate_water.load_image(image_path, band)
+    # min = img.min()
+    # max = img.max()
+    img = ((img - img.min()) * (1/(img.max() - img.min()) * 255)).astype('uint8')
+
+    # Apply global (simple) thresholding on image
+    # ret1, th1 = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+
+    # Apply Otsu's thresholding on image
+    ret2, th2 = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Apply Otsu's thresholding after Gaussian filtering
+    # blur = cv2.GaussianBlur(img, (5, 5), 0)
+    # ret3, th3 = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    titles = ['Original Image', 'Global Thresholding (v=127)', "Otsu's Thresholding", 'Gaussian Filter + Otsu']
+    # images = [img, th1, th2, th3]
+
+    # for i in range(4):
+    #     plt.subplot(2, 2, i + 1)
+    #     plt.imshow(images[i], 'gray')
+    #     plt.title(titles[i])
+    #     plt.axis("off")
+    plt.imshow(th2, 'gray')
+    # plt.imshow(th3, 'gray')
+    plt.show()
+
+
+
 def main():
     load_dotenv()
 
@@ -293,8 +460,14 @@ def main():
     # count_color_pixels()
     # transform_black_pixels_to_transparent()
     # filter_tiff_image()
-    visualize_ndwi_tiff()
+    # visualize_ndwi_tiff()
     # plot_image()
+    # detect_incomplete_image()
+    # check_for_nans_inside_images()
+    # min_max_scaler()
+    # transform_dataset()
+    # merge_geotiff()
+    # otsu_segmentation()
 
 
 start = time.time()
