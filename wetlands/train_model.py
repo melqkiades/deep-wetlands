@@ -404,6 +404,7 @@ def intersection_over_union(y_pred, y_true):
     intersection = (y_pred & y_true).sum() + smooth
     union = (y_pred | y_true).sum() + smooth
     iou = intersection / union
+
     return iou
 
 
