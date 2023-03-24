@@ -28,59 +28,14 @@ def show_image():
     plt.clf()
 
 
-def calculate_intersection_over_union(image1, image2):
-    # image1 = np.array(
-    #     [
-    #         [1, 0],
-    #         [0, 1]
-    #     ]
-    # )
-    #
-    # image2 = np.array(
-    #     [
-    #         [1, 0],
-    #         [1, 0]
-    #     ]
-    # )
+def calculate_intersection_over_union(prediction_image, true_image):
 
-    # image1 = np.array(
-    #     [
-    #         [1, 0, 1],
-    #         [0, 1, 0],
-    #         [1, 0, 1],
-    #     ]
-    # )
-    #
-    # image2 = np.array(
-    #     [
-    #         [1, 0, 0],
-    #         [0, 1, 0],
-    #         [1, 1, 1],
-    #     ]
-    # )
-
-    image1 = image1 > 0.5
-    image2 = image2 > 0.5
-    # print('\nImage 1:\n', image1)
-    # print('\nBinary 1:\n', binary1)
-
-
-    SMOOTH = 1e-6
-
-    intersection = image1 & image2
-    union = image1 | image2
-
-    # print('Intersection:\n', intersection)
-    # print('\nUnion:\n', union)
-
-    intersection_over_union = (intersection.sum() + SMOOTH) / (union.sum() + SMOOTH)
-
-    print('IOU', intersection_over_union)
-
-    # intersection = (outputs & labels).float().sum((1, 2))  # Will be zero if Truth=0 or Prediction=0
-    # union = (outputs | labels).float().sum((1, 2))  # Will be zzero if both are 0
-    #
-    # iou = (intersection + SMOOTH) / (union + SMOOTH)  # We smooth our devision to avoid 0/0
+    smooth = 1e-6
+    prediction_image = prediction_image > 0.5
+    true_image = true_image > 0.5
+    intersection = (prediction_image & true_image).sum() + smooth
+    union = (prediction_image | true_image).sum() + smooth
+    intersection_over_union = intersection / union
 
     return intersection_over_union
 
