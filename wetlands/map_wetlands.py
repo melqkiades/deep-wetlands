@@ -5,6 +5,7 @@ import time
 import numpy as np
 import rasterio as rio
 import torch
+from PIL import Image
 from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
 from rasterio.windows import Window
@@ -15,10 +16,16 @@ from osgeo import ogr
 from wetlands import train_model, utils
 
 
-def load_image(dir_path):
+def load_image(dir_path, band):
 
     tiff_image = rio.open(dir_path)
-    numpy_image = tiff_image.read(1)
+    band_index = tiff_image.descriptions.index(band)
+
+    numpy_image = tiff_image.read(band_index+1)
+
+    # If the image is incomplete and has NaN values we ignore it
+    if np.isnan(numpy_image).any():
+        return None
 
     min_value = np.nanpercentile(numpy_image, 1)
     max_value = np.nanpercentile(numpy_image, 99)
@@ -68,10 +75,14 @@ def visualize_predicted_image(image, model, device):
     plt.imshow(pred_mask)
     plt.show()
     plt.clf()
+    # plt.imsave('/tmp/water_estimation/20211016_map_wetlands_pred.png', 1 - pred_mask)
+    # img = Image.fromarray(np.uint8((1 - pred_mask) * 255), 'L')
+    # img.save('/tmp/water_estimation/20211016_map_wetlands_pred_bw.png')
     fig, ax = plt.subplots(figsize=(10, 10))
     plt.imshow(image[:width, :height], cmap='gray')
     plt.show()
     plt.clf()
+    # plt.imsave('/tmp/water_estimation/20211016_map_wetlands_sar.png', image)
 
     return pred_mask
 
@@ -137,18 +148,26 @@ def polygonize_raster_full(cwd, pred_file, shape_name, start_date):
 def full_cycle():
 
     cwd = os.getenv('TRAIN_CWD_DIR') + '/'
+    # cwd = '/tmp/water_estimation/'
     start_date = os.getenv('START_DATE')
     shape_name = os.getenv('REGION_NAME')
+    # shape_name = 'flacksjon_2018-07-04'
     patch_size = int(os.getenv('PATCH_SIZE'))
+    sar_polarization = os.getenv('SAR_POLARIZATION')
     tif_file = os.getenv('SAR_TIFF_FILE')
-    image = load_image(tif_file)
+    # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
+    # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
+    # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20211016T052340_20211016T052405_040140_04C0F0_3BEE.tif'
+    # tif_file = '/tmp/water_estimation/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
+    image = load_image(tif_file, sar_polarization)
     device = utils.get_device()
-    # model_file = os.getenv('MODEL_FILE')
-    model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
+    model_file = os.getenv('MODEL_FILE')
+    # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     pred_file = os.getenv('PREDICTIONS_FILE')
+    # pred_file = '/tmp/water_estimation/20211016_predictions_flacksjon.tif'
     model = train_model.load_model(model_file, device)
     pred_mask = visualize_predicted_image(image, model, device)
-    generate_raster_image(pred_mask, pred_file, tif_file, patch_size)
+    generate_raster_image(1 - pred_mask, pred_file, tif_file, patch_size)
     polygonize_raster_full(cwd, pred_file, shape_name, start_date)
 
 
