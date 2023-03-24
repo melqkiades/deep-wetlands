@@ -128,3 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .Rproj.user
+
+# Added by franpena
+wandb
