@@ -173,8 +173,8 @@ def main():
     full_cycle(model_name)
     plot_results(model_name)
     update_water_estimates(model_name)
-    # transform_ndwi_tiff_to_grayscale_png()
-    # transform_rgb_tiff_to_png()
+    # viz_utils.transform_ndwi_tiff_to_grayscale_png()
+    # viz_utils.transform_rgb_tiff_to_png()
 
 
 start = time.time()
