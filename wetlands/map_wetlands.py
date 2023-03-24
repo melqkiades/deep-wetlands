@@ -5,7 +5,6 @@ import time
 import numpy as np
 import rasterio as rio
 import torch
-from PIL import Image
 from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
 from rasterio.windows import Window
@@ -13,37 +12,14 @@ import geopandas as gpd
 from osgeo import gdal
 from osgeo import ogr
 
-from wetlands import train_model, utils
-
-
-def load_image(dir_path, band):
-
-    tiff_image = rio.open(dir_path)
-    band_index = tiff_image.descriptions.index(band)
-
-    numpy_image = tiff_image.read(band_index+1)
-
-    # If the image is incomplete and has NaN values we ignore it
-    if np.isnan(numpy_image).any():
-        return None
-
-    min_value = np.nanpercentile(numpy_image, 1)
-    max_value = np.nanpercentile(numpy_image, 99)
-
-    numpy_image[numpy_image > max_value] = max_value
-    numpy_image[numpy_image < min_value] = min_value
-
-    array_min, array_max = np.nanmin(numpy_image), np.nanmax(numpy_image)
-    normalized_array = (numpy_image - array_min) / (array_max - array_min)
-    normalized_array[np.isnan(normalized_array)] = 0
-
-    return normalized_array
+from wetlands import train_model, utils, viz_utils
 
 
 def visualize_sentinel1(cwd, shape_name, start_date):
     # shape_name = 'Sala kommun'
+    polarization = int(os.getenv('SAR_POLARIZATION'))
     tif_file = cwd + '{}-sar-{}.tif'.format(shape_name, start_date)
-    image = load_image(tif_file)
+    image = viz_utils.load_image(tif_file, polarization)
 
     fig, ax = plt.subplots(figsize=(15,15))
     plt.imshow(image, cmap='gray')
@@ -159,7 +135,7 @@ def full_cycle():
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20211016T052340_20211016T052405_040140_04C0F0_3BEE.tif'
     # tif_file = '/tmp/water_estimation/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
-    image = load_image(tif_file, sar_polarization)
+    image = viz_utils.load_image(tif_file, sar_polarization)
     device = utils.get_device()
     model_file = os.getenv('MODEL_FILE')
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'

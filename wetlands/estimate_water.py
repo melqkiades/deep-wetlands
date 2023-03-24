@@ -4,37 +4,12 @@ import time
 
 import numpy as np
 import pandas
-import rasterio as rio
 import torch
 import tqdm
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
 from wetlands import train_model, utils, viz_utils
-
-
-def load_image(dir_path, band):
-
-    tiff_image = rio.open(dir_path)
-    band_index = tiff_image.descriptions.index(band)
-
-    numpy_image = tiff_image.read(band_index+1)
-
-    # If the image is incomplete and has NaN values we ignore it
-    if np.isnan(numpy_image).any():
-        return None
-
-    min_value = np.nanpercentile(numpy_image, 1)
-    max_value = np.nanpercentile(numpy_image, 99)
-
-    numpy_image[numpy_image > max_value] = max_value
-    numpy_image[numpy_image < min_value] = min_value
-
-    array_min, array_max = np.nanmin(numpy_image), np.nanmax(numpy_image)
-    normalized_array = (numpy_image - array_min) / (array_max - array_min)
-    normalized_array[np.isnan(normalized_array)] = 0
-
-    return normalized_array
 
 
 def visualize_predicted_image(image, model, device, file_name):
@@ -93,7 +68,7 @@ def visualize_predicted_image(image, model, device, file_name):
 
 def get_prediction_image(tiff_file, band, model, device):
     # tif_file = os.getenv('SAR_TIFF_FILE')
-    image = load_image(tiff_file, band)
+    image = viz_utils.load_image(tiff_file, band)
 
     if image is None:
         return None

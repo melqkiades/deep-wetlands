@@ -133,3 +133,27 @@ def convert_rgb_tiff_to_png(tiff_file, out_file):
     rgb = numpy.dstack((redn, greenn, bluen))
     im = Image.fromarray((rgb * 255).astype("uint8"))
     im.save(out_file)
+
+
+def load_image(dir_path, band):
+
+    tiff_image = rio.open(dir_path)
+    band_index = tiff_image.descriptions.index(band)
+
+    numpy_image = tiff_image.read(band_index+1)
+
+    # If the image is incomplete and has NaN values we ignore it
+    if numpy.isnan(numpy_image).any():
+        return None
+
+    min_value = numpy.nanpercentile(numpy_image, 1)
+    max_value = numpy.nanpercentile(numpy_image, 99)
+
+    numpy_image[numpy_image > max_value] = max_value
+    numpy_image[numpy_image < min_value] = min_value
+
+    array_min, array_max = numpy.nanmin(numpy_image), numpy.nanmax(numpy_image)
+    normalized_array = (numpy_image - array_min) / (array_max - array_min)
+    normalized_array[numpy.isnan(normalized_array)] = 0
+
+    return normalized_array
