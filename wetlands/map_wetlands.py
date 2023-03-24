@@ -132,7 +132,7 @@ def full_cycle():
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20211016T052340_20211016T052405_040140_04C0F0_3BEE.tif'
     # tif_file = '/tmp/water_estimation/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
-    image = viz_utils.load_image(tif_file, sar_polarization, False)
+    image = viz_utils.load_image(tif_file, sar_polarization, ignore_nan=False)
     device = utils.get_device()
     model_file = os.getenv('MODEL_FILE')
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'

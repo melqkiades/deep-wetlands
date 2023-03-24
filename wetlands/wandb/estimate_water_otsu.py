@@ -49,7 +49,7 @@ def visualize_predicted_image_otsu(image, file_name):
 
 def get_prediction_image_otsu(tiff_file, band):
     # tif_file = os.getenv('SAR_TIFF_FILE')
-    image = viz_utils.load_image(tiff_file, band)
+    image = viz_utils.load_image(tiff_file, band, ignore_nan=True)
 
     if image is None:
         return None

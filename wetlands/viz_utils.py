@@ -169,7 +169,7 @@ def transform_rgb_tiff_to_png():
         convert_rgb_tiff_to_png(tiff_path, out_file)
 
 
-def load_image(dir_path, band, ignore_nan=True):
+def load_image(dir_path, band, ignore_nan=False):
 
     tiff_image = rio.open(dir_path)
     band_index = tiff_image.descriptions.index(band)
