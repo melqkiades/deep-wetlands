@@ -10,13 +10,14 @@ from PIL import Image
 import rasterio as rio
 from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
+from matplotlib.image import imread
 from osgeo import gdal
 from rasterio.plot import show
 from scipy import ndimage
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 
-from wetlands import estimate_water
+from wetlands import viz_utils, jaccard_similarity
 
 
 def clip_matrix():
@@ -414,7 +415,7 @@ def otsu_segmentation():
 
     # img = cv2.imread(image_path, 0)
     band = os.getenv('SAR_POLARIZATION')
-    img = estimate_water.load_image(image_path, band)
+    img = viz_utils.load_image(image_path, band)
     # min = img.min()
     # max = img.max()
     img = ((img - img.min()) * (1/(img.max() - img.min()) * 255)).astype('uint8')
@@ -442,6 +443,53 @@ def otsu_segmentation():
     plt.show()
 
 
+def calculate_iou():
+
+    # file1 = '/tmp/tmp_otsu_selected/bw_20180505_annotated.png'
+    # file1 = '/tmp/tmp_otsu_selected/20180505_pred_bw.png'
+    date = '20180505'
+    # date = '20180704'
+    # date = '20211016'
+    annotated_file = f'/tmp/tmp_otsu_selected/{date}_annotated_bw.png'
+    im = Image.open(annotated_file).convert('L')
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    new_width = (im.width // patch_size) * patch_size
+    new_height = (im.height // patch_size) * patch_size
+    im = im.crop((0, 0, new_width, new_height))
+    # im = im.crop((0, 0, 896, 448))
+    # im.load()
+    annotated_data = numpy.array(im)
+
+    # DeepAqua prediction
+    prediction_file = f'/tmp/tmp_otsu_selected/{date}_pred_bw.png'
+    img = Image.open(prediction_file).convert('L')
+    img = img.crop((0, 0, new_width, new_height))
+    prediction_data = numpy.array(img)
+    print('\nDeepAqua')
+    iou = jaccard_similarity.calculate_intersection_over_union(prediction_data, annotated_data)
+
+    # Otsu prediction
+    prediction_file = f'/tmp/tmp_otsu_selected/{date}_otsu_bw.png'
+    img = Image.open(prediction_file).convert('L')
+    img = img.crop((0, 0, new_width, new_height))
+    prediction_data = numpy.array(img)
+    print('\nOtsu')
+    iou = jaccard_similarity.calculate_intersection_over_union(prediction_data, annotated_data)
+
+    # Otsu Gaussian
+    prediction_file = f'/tmp/tmp_otsu_selected/{date}_otsu_gaussian_bw.png'
+    img = Image.open(prediction_file).convert('L')
+    img = img.crop((0, 0, new_width, new_height))
+    prediction_data = numpy.array(img)
+    print('\nOtsu Gaussian')
+    iou = jaccard_similarity.calculate_intersection_over_union(prediction_data, annotated_data)
+
+    # print('Hola')
+
+    # image1 = imread(file1)
+    # data = numpy.asarray(image1, dtype="int32")
+    # print(image1)
+
 
 def main():
     load_dotenv()
@@ -468,6 +516,7 @@ def main():
     # transform_dataset()
     # merge_geotiff()
     # otsu_segmentation()
+    calculate_iou()
 
 
 start = time.time()
