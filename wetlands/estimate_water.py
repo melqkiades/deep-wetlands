@@ -4,12 +4,11 @@ import time
 
 import numpy as np
 import pandas
-import torch
 import tqdm
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
-from wetlands import train_model, utils, viz_utils
+from wetlands import train_model, utils, viz_utils, map_wetlands
 
 
 def visualize_predicted_image(image, model, device, file_name):
@@ -24,19 +23,7 @@ def visualize_predicted_image(image, model, device, file_name):
     patch_size = int(os.getenv('PATCH_SIZE'))
     width = image.shape[0] - image.shape[0] % patch_size
     height = image.shape[1] - image.shape[1] % patch_size
-    pred_mask = np.zeros(tuple((width, height)))
-
-    for h in range(0, height, patch_size):
-        for w in range(0, width, patch_size):
-            image_crop = image[w:w + patch_size, h:h + patch_size]
-            image_crop = image_crop[None, :]
-            binary_image = np.where(image_crop.sum(2) > 0, 1, 0)
-            image_crop = torch.from_numpy(image_crop.astype(np.float32)).to(device)[None, :]
-
-            pred = model(image_crop).cpu().detach().numpy()
-            pred = (pred).squeeze() * binary_image
-            pred = np.where(pred < 0.5, 0, 1)
-            pred_mask[w:w + patch_size, h:h + patch_size] = pred
+    pred_mask = map_wetlands.predict_water_mask(image, model, device)
 
     unique, counts = np.unique(pred_mask, return_counts=True)
     results = dict(zip(unique, counts))
@@ -90,17 +77,6 @@ def plot_results():
     plt.show()
 
 
-def remove_cropped_files():
-    tiff_dir = os.getenv('BULK_EXPORT_DIR')
-    flist = open('/Users/frape/tmp/cropped_images/cropped_images.txt')
-    for f in flist:
-        # fname = f.rstrip()  # or depending on situation: f.rstrip('\n')
-        # or, if you get rid of os.chdir(path) above,
-        fname = os.path.join(tiff_dir, f.rstrip())
-        if os.path.isfile(fname):  # this makes the code more robust
-            os.remove(fname)
-
-
 def update_water_estimates():
     model_name = os.getenv('MODEL_NAME')
     study_area = os.getenv('STUDY_AREA')
@@ -122,38 +98,6 @@ def update_water_estimates():
         plt.show()
 
         data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_new_water_estimates_filtered.csv')
-
-
-def transform_ndwi_tiff_to_grayscale_png():
-    study_area = os.getenv('STUDY_AREA')
-    tiff_dir = f'/tmp/bulk_export_{study_area}_ndwi/'
-
-    if not os.path.exists(tiff_dir):
-        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
-
-    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
-    print(filenames)
-
-    for tiff_file in filenames:
-        tiff_path = tiff_dir + tiff_file
-        out_file = tiff_path.replace('.tif', '.png')
-        viz_utils.convert_ndwi_tiff_to_png(tiff_path, out_file)
-
-
-def transform_rgb_tiff_to_png():
-    study_area = os.getenv('STUDY_AREA')
-    tiff_dir = f'/tmp/bulk_export_{study_area}_rgb/'
-
-    if not os.path.exists(tiff_dir):
-        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
-
-    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
-    print(filenames)
-
-    for tiff_file in filenames:
-        tiff_path = tiff_dir + tiff_file
-        out_file = tiff_path.replace('.tif', '.png')
-        viz_utils.convert_rgb_tiff_to_png(tiff_path, out_file)
 
 
 def full_cycle():
@@ -202,7 +146,6 @@ def full_cycle():
 def main():
     load_dotenv()
 
-    remove_cropped_files()
     full_cycle()
     plot_results()
     update_water_estimates()

@@ -15,36 +15,12 @@ from osgeo import ogr
 from wetlands import train_model, utils, viz_utils
 
 
-def visualize_sentinel1(cwd, shape_name, start_date):
-    # shape_name = 'Sala kommun'
-    polarization = int(os.getenv('SAR_POLARIZATION'))
-    tif_file = cwd + '{}-sar-{}.tif'.format(shape_name, start_date)
-    image = viz_utils.load_image(tif_file, polarization)
-
-    fig, ax = plt.subplots(figsize=(15,15))
-    plt.imshow(image, cmap='gray')
-    print(type(image), image.shape)
-    print(image[2000, 2000:])
-
-
 def visualize_predicted_image(image, model, device):
 
     patch_size = int(os.getenv('PATCH_SIZE'))
     width = image.shape[0] - image.shape[0] % patch_size
     height = image.shape[1] - image.shape[1] % patch_size
-    pred_mask = np.zeros(tuple((width, height)))
-
-    for h in range(0, height, patch_size):
-        for w in range(0, width, patch_size):
-            image_crop = image[w:w + patch_size, h:h + patch_size]
-            image_crop = image_crop[None, :]
-            binary_image = np.where(image_crop.sum(2) > 0, 1, 0)
-            image_crop = torch.from_numpy(image_crop.astype(np.float32)).to(device)[None, :]
-
-            pred = model(image_crop).cpu().detach().numpy()
-            pred = (pred).squeeze() * binary_image
-            pred = np.where(pred < 0.5, 0, 1)
-            pred_mask[w:w + patch_size, h:h + patch_size] = pred
+    pred_mask = predict_water_mask(image, model, device)
 
     fig, ax = plt.subplots(figsize=(10, 10))
     pred_mask = 1 - pred_mask
@@ -59,6 +35,27 @@ def visualize_predicted_image(image, model, device):
     plt.show()
     plt.clf()
     # plt.imsave('/tmp/water_estimation/20211016_map_wetlands_sar.png', image)
+
+    return pred_mask
+
+
+def predict_water_mask(sar_image, model, device):
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    width = sar_image.shape[0] - sar_image.shape[0] % patch_size
+    height = sar_image.shape[1] - sar_image.shape[1] % patch_size
+    pred_mask = np.zeros(tuple((width, height)))
+
+    for h in range(0, height, patch_size):
+        for w in range(0, width, patch_size):
+            sar_image_crop = sar_image[w:w + patch_size, h:h + patch_size]
+            sar_image_crop = sar_image_crop[None, :]
+            binary_image = np.where(sar_image_crop.sum(2) > 0, 1, 0)
+            sar_image_crop = torch.from_numpy(sar_image_crop.astype(np.float32)).to(device)[None, :]
+
+            pred = model(sar_image_crop).cpu().detach().numpy()
+            pred = (pred).squeeze() * binary_image
+            pred = np.where(pred < 0.5, 0, 1)
+            pred_mask[w:w + patch_size, h:h + patch_size] = pred
 
     return pred_mask
 
@@ -135,7 +132,7 @@ def full_cycle():
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20211016T052340_20211016T052405_040140_04C0F0_3BEE.tif'
     # tif_file = '/tmp/water_estimation/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
-    image = viz_utils.load_image(tif_file, sar_polarization)
+    image = viz_utils.load_image(tif_file, sar_polarization, False)
     device = utils.get_device()
     model_file = os.getenv('MODEL_FILE')
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'

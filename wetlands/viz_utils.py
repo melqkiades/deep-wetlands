@@ -1,3 +1,5 @@
+import os
+
 import numpy
 import rasterio as rio
 from PIL import Image
@@ -135,7 +137,39 @@ def convert_rgb_tiff_to_png(tiff_file, out_file):
     im.save(out_file)
 
 
-def load_image(dir_path, band):
+def transform_ndwi_tiff_to_grayscale_png():
+    study_area = os.getenv('STUDY_AREA')
+    tiff_dir = f'/tmp/bulk_export_{study_area}_ndwi/'
+
+    if not os.path.exists(tiff_dir):
+        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
+
+    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+    print(filenames)
+
+    for tiff_file in filenames:
+        tiff_path = tiff_dir + tiff_file
+        out_file = tiff_path.replace('.tif', '.png')
+        convert_ndwi_tiff_to_png(tiff_path, out_file)
+
+
+def transform_rgb_tiff_to_png():
+    study_area = os.getenv('STUDY_AREA')
+    tiff_dir = f'/tmp/bulk_export_{study_area}_rgb/'
+
+    if not os.path.exists(tiff_dir):
+        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
+
+    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+    print(filenames)
+
+    for tiff_file in filenames:
+        tiff_path = tiff_dir + tiff_file
+        out_file = tiff_path.replace('.tif', '.png')
+        convert_rgb_tiff_to_png(tiff_path, out_file)
+
+
+def load_image(dir_path, band, ignore_nan=True):
 
     tiff_image = rio.open(dir_path)
     band_index = tiff_image.descriptions.index(band)
@@ -143,7 +177,7 @@ def load_image(dir_path, band):
     numpy_image = tiff_image.read(band_index+1)
 
     # If the image is incomplete and has NaN values we ignore it
-    if numpy.isnan(numpy_image).any():
+    if ignore_nan and numpy.isnan(numpy_image).any():
         return None
 
     min_value = numpy.nanpercentile(numpy_image, 1)
