@@ -15,17 +15,15 @@ from wetlands import train_model, utils, viz_utils, map_wetlands
 
 def visualize_predicted_image(image, model, device, file_name, model_name):
     study_area = os.getenv('STUDY_AREA')
-
-    images_dir = f'/tmp/descending_{model_name}_{study_area}_exported_images/'
-
-    if not os.path.isdir(images_dir):
-        os.mkdir(images_dir)
-
     patch_size = int(os.getenv('PATCH_SIZE'))
     width = image.shape[0] - image.shape[0] % patch_size
     height = image.shape[1] - image.shape[1] % patch_size
     if model_name == 'otsu':
-        pred_mask = otsu_gaussian_threshold(image)
+        pred_mask = otsu_threshold(image)
+    elif model_name == 'otsu_gaussian':
+        kernel_size = os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
+        model_name += '_' + kernel_size
+        pred_mask = otsu_gaussian_threshold(image, int(kernel_size))
     else:
         pred_mask = map_wetlands.predict_water_mask(image, model, device)
 
@@ -36,6 +34,11 @@ def visualize_predicted_image(image, model, device, file_name, model_name):
     results['Date'] = image_date
     results['Satellite'] = satellite
     results['File_name'] = file_name
+
+    images_dir = f'/tmp/descending_{model_name}_{study_area}_exported_images/'
+
+    if not os.path.isdir(images_dir):
+        os.mkdir(images_dir)
 
     # Plotting SAR
     plt.imshow(image[:width, :height], cmap='gray')
@@ -61,21 +64,31 @@ def get_prediction_image(tiff_file, band, model, device, model_name):
     return results
 
 
-def otsu_gaussian_threshold(image):
+def otsu_threshold(image):
     image = ((image - image.min()) * (1 / (image.max() - image.min()) * 255)).astype('uint8')
 
     # Apply Otsu's thresholding on image
-    otsu_threshold, thresholded_image = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    threshold, thresholded_image = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    thresholded_image = 1 - ((thresholded_image - thresholded_image.min()) / (thresholded_image.max() - thresholded_image.min()))
+
+    return thresholded_image
+
+
+def otsu_gaussian_threshold(image, kernel_size=5):
+    image = ((image - image.min()) * (1 / (image.max() - image.min()) * 255)).astype('uint8')
 
     # Apply Otsu's thresholding after Gaussian filtering
-    # blur = cv2.GaussianBlur(image, (5, 5), 0)
-    # otsu_threshold, thresholded_image = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    blur = cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
+    threshold, thresholded_image = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     thresholded_image = 1 - ((thresholded_image - thresholded_image.min()) / (thresholded_image.max() - thresholded_image.min()))
 
     return thresholded_image
 
 
 def plot_results(model_name):
+    if model_name == 'otsu_gaussian':
+        model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
+
     study_area = os.getenv('STUDY_AREA')
     # results_file = '/tmp/water_estimates_flacksjon_2018-07.csv'
     results_file = f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv'
@@ -88,6 +101,8 @@ def plot_results(model_name):
 
 def update_water_estimates(model_name):
     study_area = os.getenv('STUDY_AREA')
+    if model_name == 'otsu_gaussian':
+        model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
 
     with open('/Users/frape/tmp/cropped_images/cropped_images.txt') as file:
         lines = [line.rstrip() for line in file]
@@ -140,6 +155,9 @@ def full_cycle(model_name):
 
     print(f'There were a total of {incomplete_images} incomplete images')
 
+    if model_name == 'otsu_gaussian':
+        model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
+
     data_frame = pandas.DataFrame(results_list)
     data_frame['Date'] = data_frame['Date'].apply(pandas.to_datetime).dt.date
     print(data_frame.head())
@@ -149,7 +167,8 @@ def full_cycle(model_name):
 def main():
     load_dotenv()
 
-    model_name = 'otsu'
+    # model_name = 'otsu'
+    model_name = 'otsu_gaussian'
     # model_name = os.getenv('MODEL_NAME')
     full_cycle(model_name)
     plot_results(model_name)
