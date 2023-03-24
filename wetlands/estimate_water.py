@@ -2,17 +2,18 @@
 import os
 import time
 
+import cv2
 import numpy as np
 import pandas
 import tqdm
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
+from PIL import Image
 
 from wetlands import train_model, utils, viz_utils, map_wetlands
 
 
-def visualize_predicted_image(image, model, device, file_name):
-    model_name = os.getenv('MODEL_NAME')
+def visualize_predicted_image(image, model, device, file_name, model_name):
     study_area = os.getenv('STUDY_AREA')
 
     images_dir = f'/tmp/descending_{model_name}_{study_area}_exported_images/'
@@ -23,7 +24,10 @@ def visualize_predicted_image(image, model, device, file_name):
     patch_size = int(os.getenv('PATCH_SIZE'))
     width = image.shape[0] - image.shape[0] % patch_size
     height = image.shape[1] - image.shape[1] % patch_size
-    pred_mask = map_wetlands.predict_water_mask(image, model, device)
+    if model_name == 'otsu':
+        pred_mask = otsu_gaussian_threshold(image)
+    else:
+        pred_mask = map_wetlands.predict_water_mask(image, model, device)
 
     unique, counts = np.unique(pred_mask, return_counts=True)
     results = dict(zip(unique, counts))
@@ -33,40 +37,45 @@ def visualize_predicted_image(image, model, device, file_name):
     results['Satellite'] = satellite
     results['File_name'] = file_name
 
-
     # Plotting SAR
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # ax.set_title(satellite + ' ' + image_date, fontdict = {'fontsize' : 60})
     plt.imshow(image[:width, :height], cmap='gray')
     plt.imsave(images_dir + image_date + '_' + file_name + '_sar.png', image)
-    # plt.show()
-    # plt.clf()
 
     # Plotting prediction
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # ax.set_title(satellite + ' ' + image_date, fontdict={'fontsize': 60})
     plt.imshow(pred_mask)
     plt.imsave(images_dir + image_date + '_' + file_name + '_pred.png', pred_mask)
-    # plt.show()
-    # plt.clf()
+    img = Image.fromarray(np.uint8((pred_mask) * 255), 'L')
+    img.save(images_dir + image_date + '_' + file_name + '_pred_bw.png')
 
     return results
 
 
-def get_prediction_image(tiff_file, band, model, device):
-    # tif_file = os.getenv('SAR_TIFF_FILE')
+def get_prediction_image(tiff_file, band, model, device, model_name):
     image = viz_utils.load_image(tiff_file, band, ignore_nan=True)
 
     if image is None:
         return None
 
     file_name = os.path.basename(tiff_file)
-    results = visualize_predicted_image(image, model, device, file_name)
+    results = visualize_predicted_image(image, model, device, file_name, model_name)
     return results
 
 
-def plot_results():
-    model_name = os.getenv('MODEL_NAME')
+def otsu_gaussian_threshold(image):
+    image = ((image - image.min()) * (1 / (image.max() - image.min()) * 255)).astype('uint8')
+
+    # Apply Otsu's thresholding on image
+    otsu_threshold, thresholded_image = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Apply Otsu's thresholding after Gaussian filtering
+    # blur = cv2.GaussianBlur(image, (5, 5), 0)
+    # otsu_threshold, thresholded_image = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    thresholded_image = 1 - ((thresholded_image - thresholded_image.min()) / (thresholded_image.max() - thresholded_image.min()))
+
+    return thresholded_image
+
+
+def plot_results(model_name):
     study_area = os.getenv('STUDY_AREA')
     # results_file = '/tmp/water_estimates_flacksjon_2018-07.csv'
     results_file = f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv'
@@ -77,8 +86,7 @@ def plot_results():
     plt.show()
 
 
-def update_water_estimates():
-    model_name = os.getenv('MODEL_NAME')
+def update_water_estimates(model_name):
     study_area = os.getenv('STUDY_AREA')
 
     with open('/Users/frape/tmp/cropped_images/cropped_images.txt') as file:
@@ -90,6 +98,7 @@ def update_water_estimates():
         data_frame = data_frame[~data_frame['File_name'].isin(lines)]
         data_frame.drop(['File_name'], axis=1, inplace=True)
         data_frame = data_frame[data_frame['Date'].dt.month.isin([4, 5, 6, 7, 8, 9, 10, 11])]
+        # data_frame = data_frame[data_frame['Date'].dt.year.isin([2018, 2019, 2020, 2021, 2022])]
         print(data_frame.size)
         print(data_frame.columns.values)
 
@@ -100,11 +109,9 @@ def update_water_estimates():
         data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_new_water_estimates_filtered.csv')
 
 
-def full_cycle():
+def full_cycle(model_name):
     load_dotenv()
 
-    # tiff_dir = '/tmp/bulk_export_flacksjon'
-    # tiff_dir = '/tmp/bulk_export_flacksjon_2018-07'
     tiff_dir = os.getenv('BULK_EXPORT_DIR')
 
     if not os.path.exists(tiff_dir):
@@ -116,7 +123,6 @@ def full_cycle():
     device = utils.get_device()
     model_file = os.getenv('MODEL_FILE')
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
-    model_name = os.getenv('MODEL_NAME')
     study_area = os.getenv('STUDY_AREA')
     sar_polarization = os.getenv('SAR_POLARIZATION')
     model = train_model.load_model(model_file, device)
@@ -125,7 +131,7 @@ def full_cycle():
     incomplete_images = 0
 
     for tiff_file in tqdm.tqdm(sorted(filenames)):
-        results = get_prediction_image(tiff_dir + '/' + tiff_file, sar_polarization, model, device)
+        results = get_prediction_image(tiff_dir + '/' + tiff_file, sar_polarization, model, device, model_name)
 
         if results is None:
             incomplete_images += 1
@@ -139,16 +145,15 @@ def full_cycle():
     print(data_frame.head())
     data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv')
 
-    # tiff_file = '/tmp/bulk_export_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
-    # get_prediction_image(tiff_file, 'VH')
-
 
 def main():
     load_dotenv()
 
-    full_cycle()
-    plot_results()
-    update_water_estimates()
+    model_name = 'otsu'
+    # model_name = os.getenv('MODEL_NAME')
+    full_cycle(model_name)
+    plot_results(model_name)
+    update_water_estimates(model_name)
     # transform_ndwi_tiff_to_grayscale_png()
     # transform_rgb_tiff_to_png()
 
