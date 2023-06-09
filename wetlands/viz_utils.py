@@ -98,10 +98,10 @@ def show_crop(image, shape, title=''):
         plt.show()
 
 
-def convert_ndwi_tiff_to_png(tiff_file, out_file):
+def convert_ndwi_tiff_to_png(tiff_file, out_file, band):
 
     tiff_image = rio.open(tiff_file)
-    image_array = tiff_image.read(tiff_image.descriptions.index('NDWI-mask') + 1)
+    image_array = tiff_image.read(tiff_image.descriptions.index(band) + 1)
     image_array[image_array > 0.5] = 1.00
     image_array[image_array <= 0.5] = 0.0
 
@@ -137,9 +137,7 @@ def convert_rgb_tiff_to_png(tiff_file, out_file):
     im.save(out_file)
 
 
-def transform_ndwi_tiff_to_grayscale_png():
-    study_area = os.getenv('STUDY_AREA')
-    tiff_dir = f'/tmp/bulk_export_{study_area}_ndwi/'
+def transform_ndwi_tiff_to_grayscale_png(tiff_dir, band):
 
     if not os.path.exists(tiff_dir):
         raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
@@ -150,12 +148,10 @@ def transform_ndwi_tiff_to_grayscale_png():
     for tiff_file in filenames:
         tiff_path = tiff_dir + tiff_file
         out_file = tiff_path.replace('.tif', '.png')
-        convert_ndwi_tiff_to_png(tiff_path, out_file)
+        convert_ndwi_tiff_to_png(tiff_path, out_file, band)
 
 
-def transform_rgb_tiff_to_png():
-    study_area = os.getenv('STUDY_AREA')
-    tiff_dir = f'/tmp/bulk_export_{study_area}_rgb/'
+def transform_rgb_tiff_to_png(tiff_dir):
 
     if not os.path.exists(tiff_dir):
         raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
