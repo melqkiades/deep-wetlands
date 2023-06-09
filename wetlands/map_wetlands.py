@@ -5,6 +5,7 @@ import time
 import numpy as np
 import rasterio as rio
 import torch
+import wandb
 from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
 from rasterio.windows import Window
@@ -134,11 +135,16 @@ def full_cycle():
     # tif_file = '/tmp/water_estimation/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
     image = viz_utils.load_image(tif_file, sar_polarization, ignore_nan=False)
     device = utils.get_device()
-    model_file = os.getenv('MODEL_FILE')
+    # model_file = os.getenv('MODEL_FILE')
+    model_dir = os.getenv('MODELS_DIR')
+    model_name = os.getenv("MODEL_NAME")
+    run_name = os.getenv("RUN_NAME") if wandb.run is None else wandb.run.name
+    model_file = f'{run_name}_{model_name}.pth'
+    model_path = os.path.join(model_dir, model_file)
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     pred_file = os.getenv('PREDICTIONS_FILE')
     # pred_file = '/tmp/water_estimation/20211016_predictions_flacksjon.tif'
-    model = train_model.load_model(model_file, device)
+    model = train_model.load_model(model_path, device)
     pred_mask = visualize_predicted_image(image, model, device)
     generate_raster_image(1 - pred_mask, pred_file, tif_file, patch_size)
     polygonize_raster_full(cwd, pred_file, shape_name, start_date)

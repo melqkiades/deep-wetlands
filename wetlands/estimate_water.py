@@ -140,7 +140,15 @@ def full_cycle(model_name):
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     study_area = os.getenv('STUDY_AREA')
     sar_polarization = os.getenv('SAR_POLARIZATION')
-    model = train_model.load_model(model_file, device)
+    model_dir = os.getenv('MODELS_DIR')
+    model_name = os.getenv("MODEL_NAME")
+    run_name = os.getenv("RUN_NAME")
+    model_file = f'{run_name}_{model_name}.pth'
+    model_path = os.path.join(model_dir, model_file)
+    if model_name not in ['otsu', 'otsu_gaussian']:
+        model = train_model.load_model(model_path, device)
+    else:
+        model = None
 
     results_list = []
     incomplete_images = 0
@@ -168,13 +176,18 @@ def main():
     load_dotenv()
 
     # model_name = 'otsu'
-    model_name = 'otsu_gaussian'
-    # model_name = os.getenv('MODEL_NAME')
+    # model_name = 'otsu_gaussian'
+    model_name = os.getenv('MODEL_NAME')
     full_cycle(model_name)
     plot_results(model_name)
     update_water_estimates(model_name)
     # viz_utils.transform_ndwi_tiff_to_grayscale_png()
     # viz_utils.transform_rgb_tiff_to_png()
+    # study_area = os.getenv('STUDY_AREA')
+    # ndwi_tiff_dir = f'/tmp/bulk_export_{study_area}_ndwi/'
+    # rgb_tiff_dir = f'/tmp/bulk_export_{study_area}_rgb/'
+    # viz_utils.transform_ndwi_tiff_to_grayscale_png(ndwi_tiff_dir, 'NDWI-mask')
+    # viz_utils.transform_rgb_tiff_to_png(rgb_tiff_dir)
 
 
 start = time.time()
