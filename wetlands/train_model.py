@@ -177,7 +177,9 @@ def save_model(model, model_dir, model_file):
 
 
 def load_model(model_file, device):
-    loaded_model = Unet(in_channels=1)
+    unet_init_dim = int(os.getenv('UNET_INIT_DIM'))
+    unet_blocks = int(os.getenv('UNET_BLOCKS'))
+    loaded_model = Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks)
     loaded_model.to(device)
     loaded_model.load_state_dict(torch.load(model_file, map_location=device))
     loaded_model.eval()
@@ -240,6 +242,8 @@ def full_cycle():
     orbit_pass = os.getenv('ORBIT_PASS')
     patch_size = int(os.getenv('PATCH_SIZE'))
     ndwi_input = os.getenv('NDWI_INPUT')
+    unet_init_dim = int(os.getenv('UNET_INIT_DIM'))
+    unet_blocks = int(os.getenv('UNET_BLOCKS'))
 
     config = {
         "learning_rate": learning_rate,
@@ -270,7 +274,7 @@ def full_cycle():
 
     dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir)
 
-    model = Unet(in_channels=1)
+    model = Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks)
     print(model)
     print('Model parameters', sum(param.numel() for param in model.parameters()))
     criterion = DiceLoss()
