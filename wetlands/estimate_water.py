@@ -141,7 +141,6 @@ def full_cycle(model_name):
     study_area = os.getenv('STUDY_AREA')
     sar_polarization = os.getenv('SAR_POLARIZATION')
     model_dir = os.getenv('MODELS_DIR')
-    model_name = os.getenv("MODEL_NAME")
     run_name = os.getenv("RUN_NAME")
     model_file = f'{run_name}_{model_name}.pth'
     model_path = os.path.join(model_dir, model_file)
