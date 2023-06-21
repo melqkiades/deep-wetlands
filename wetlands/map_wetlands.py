@@ -13,7 +13,7 @@ import geopandas as gpd
 from osgeo import gdal
 from osgeo import ogr
 
-from wetlands import train_model, utils, viz_utils
+from wetlands import train_model, utils, viz_utils, wandb_utils
 
 
 def visualize_predicted_image(image, model, device):
@@ -135,12 +135,7 @@ def full_cycle():
     # tif_file = '/tmp/water_estimation/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
     image = viz_utils.load_image(tif_file, sar_polarization, ignore_nan=False)
     device = utils.get_device()
-    # model_file = os.getenv('MODEL_FILE')
-    model_dir = os.getenv('MODELS_DIR')
-    model_name = os.getenv("MODEL_NAME")
-    run_name = os.getenv("RUN_NAME") if wandb.run is None else wandb.run.name
-    model_file = f'{run_name}_{model_name}.pth'
-    model_path = os.path.join(model_dir, model_file)
+    model_path = wandb_utils.get_model_path()
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     pred_file = os.getenv('PREDICTIONS_FILE')
     # pred_file = '/tmp/water_estimation/20211016_predictions_flacksjon.tif'
