@@ -95,12 +95,14 @@ def plot_results(model_name):
     data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date'], index_col=["Date"],  parse_dates=["Date"])
 
     data_frame.plot(title=model_name)
-    plt.savefig(f'/tmp/charts/descending_{model_name}_{study_area}_water_estimates.png')
+    charts_dir = os.getenv('CHARTS_DIR')
+    plt.savefig(f'{charts_dir}/descending_{model_name}_{study_area}_water_estimates.png')
     plt.show()
 
 
 def update_water_estimates(model_name):
     study_area = os.getenv('STUDY_AREA')
+    charts_dir = os.getenv('CHARTS_DIR')
     if model_name == 'otsu_gaussian':
         model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
 
@@ -118,7 +120,7 @@ def update_water_estimates(model_name):
         print(data_frame.columns.values)
 
         data_frame.plot(x='Date', y='1.0', kind='scatter', title=model_name)
-        plt.savefig(f'/tmp/charts/scatter_descending_{model_name}_{study_area}_new_water_estimates_filtered.png')
+        plt.savefig(f'{charts_dir}/scatter_descending_{model_name}_{study_area}_new_water_estimates_filtered.png')
         plt.show()
 
         data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_new_water_estimates_filtered.csv')
@@ -171,8 +173,7 @@ def full_cycle(model_name):
 def main():
     load_dotenv()
 
-    # TODO: Add charts directory to the .env file
-    charts_dir = '/tmp/charts'
+    charts_dir = os.getenv('CHARTS_DIR')
     if not os.path.isdir(charts_dir):
         os.mkdir(charts_dir)
 
