@@ -23,13 +23,13 @@ def convert_annotated_data_to_png():
 
 
 def rename_prediction_images(model_name):
-
+    results_dir = os.getenv('RESULTS_DIR')
     performance_dir = '/tmp/performance_evaluator/'
     if not os.path.isdir(performance_dir):
         os.mkdir(performance_dir)
 
     # performance_dir = '/tmp/descending_otsu_flacksjon_exported_images/'
-    predictions_dir = f'/tmp/descending_{model_name}_flacksjon_exported_images/'
+    predictions_dir = f'{results_dir}/{model_name}_flacksjon_exported_images/'
     [shutil.copyfile(predictions_dir + f, performance_dir + f[:8] + f'_{model_name}_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
 
 

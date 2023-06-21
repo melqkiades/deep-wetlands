@@ -16,6 +16,8 @@ from wetlands import train_model, utils, viz_utils, map_wetlands, wandb_utils
 def visualize_predicted_image(image, model, device, file_name, model_name):
     study_area = os.getenv('STUDY_AREA')
     patch_size = int(os.getenv('PATCH_SIZE'))
+    results_dir = os.getenv('RESULTS_DIR')
+
     width = image.shape[0] - image.shape[0] % patch_size
     height = image.shape[1] - image.shape[1] % patch_size
     if model_name == 'otsu':
@@ -35,7 +37,7 @@ def visualize_predicted_image(image, model, device, file_name, model_name):
     results['Satellite'] = satellite
     results['File_name'] = file_name
 
-    images_dir = f'/tmp/descending_{model_name}_{study_area}_exported_images/'
+    images_dir = f'{results_dir}/{model_name}_{study_area}_exported_images/'
 
     if not os.path.isdir(images_dir):
         os.mkdir(images_dir)
@@ -90,25 +92,28 @@ def plot_results(model_name):
         model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
 
     study_area = os.getenv('STUDY_AREA')
+    charts_dir = os.getenv('CHARTS_DIR')
+    results_dir = os.getenv('RESULTS_DIR')
     # results_file = '/tmp/water_estimates_flacksjon_2018-07.csv'
-    results_file = f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv'
+    results_file = f'/{results_dir}/{model_name}_{study_area}_water_estimates.csv'
     data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date'], index_col=["Date"],  parse_dates=["Date"])
 
     data_frame.plot(title=model_name)
-    charts_dir = os.getenv('CHARTS_DIR')
-    plt.savefig(f'{charts_dir}/descending_{model_name}_{study_area}_water_estimates.png')
+
+    plt.savefig(f'{charts_dir}/{model_name}_{study_area}_water_estimates.png')
     plt.show()
 
 
 def update_water_estimates(model_name):
     study_area = os.getenv('STUDY_AREA')
     charts_dir = os.getenv('CHARTS_DIR')
+    results_dir = os.getenv('RESULTS_DIR')
     if model_name == 'otsu_gaussian':
         model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
 
     with open('/Users/frape/tmp/cropped_images/cropped_images.txt') as file:
         lines = [line.rstrip() for line in file]
-        results_file = f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv'
+        results_file = f'{results_dir}/{model_name}_{study_area}_water_estimates.csv'
         data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date', 'File_name'],  parse_dates=["Date"])
         print(data_frame.size)
         print(data_frame.columns.values)
@@ -120,16 +125,17 @@ def update_water_estimates(model_name):
         print(data_frame.columns.values)
 
         data_frame.plot(x='Date', y='1.0', kind='scatter', title=model_name)
-        plt.savefig(f'{charts_dir}/scatter_descending_{model_name}_{study_area}_new_water_estimates_filtered.png')
+        plt.savefig(f'{charts_dir}/scatter_{model_name}_{study_area}_new_water_estimates_filtered.png')
         plt.show()
 
-        data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_new_water_estimates_filtered.csv')
+        data_frame.to_csv(f'{results_dir}/{model_name}_{study_area}_new_water_estimates_filtered.csv')
 
 
 def full_cycle(model_name):
     load_dotenv()
 
     tiff_dir = os.getenv('BULK_EXPORT_DIR')
+    results_dir = os.getenv('RESULTS_DIR')
 
     if not os.path.exists(tiff_dir):
         raise FileNotFoundError(f'The folder containing the TIFF files does not exist: {tiff_dir}')
@@ -167,7 +173,7 @@ def full_cycle(model_name):
     data_frame = pandas.DataFrame(results_list)
     data_frame['Date'] = data_frame['Date'].apply(pandas.to_datetime).dt.date
     print(data_frame.head())
-    data_frame.to_csv(f'/tmp/descending_{model_name}_{study_area}_water_estimates.csv')
+    data_frame.to_csv(f'{results_dir}/{model_name}_{study_area}_water_estimates.csv')
 
 
 def main():
@@ -176,6 +182,10 @@ def main():
     charts_dir = os.getenv('CHARTS_DIR')
     if not os.path.isdir(charts_dir):
         os.mkdir(charts_dir)
+
+    results_dir = os.getenv('RESULTS_DIR')
+    if not os.path.isdir(results_dir):
+        os.mkdir(results_dir)
 
     # model_name = 'otsu'
     # model_name = 'otsu_gaussian'
