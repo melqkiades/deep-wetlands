@@ -260,6 +260,8 @@ def full_cycle():
     }
 
     wandb.init(project="test-project", entity="deep-wetlands", config=config)
+    config = dotenv_values()
+    print(json.dumps(config, indent=4))
     run_name = wandb.run.name
     utils.plant_random_seed(seed)
 
