@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 from PIL import Image
 
-from wetlands import train_model, utils, viz_utils, map_wetlands
+from wetlands import train_model, utils, viz_utils, map_wetlands, wandb_utils
 
 
 def visualize_predicted_image(image, model, device, file_name, model_name):
@@ -140,11 +140,8 @@ def full_cycle(model_name):
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     study_area = os.getenv('STUDY_AREA')
     sar_polarization = os.getenv('SAR_POLARIZATION')
-    model_dir = os.getenv('MODELS_DIR')
-    run_name = os.getenv("RUN_NAME")
-    model_file = f'{run_name}_{model_name}.pth'
-    model_path = os.path.join(model_dir, model_file)
     if model_name not in ['otsu', 'otsu_gaussian']:
+        model_path = wandb_utils.get_model_path()
         model = train_model.load_model(model_path, device)
     else:
         model = None
@@ -174,6 +171,11 @@ def full_cycle(model_name):
 def main():
     load_dotenv()
 
+    # TODO: Add charts directory to the .env file
+    charts_dir = '/tmp/charts'
+    if not os.path.isdir(charts_dir):
+        os.mkdir(charts_dir)
+
     # model_name = 'otsu'
     # model_name = 'otsu_gaussian'
     model_name = os.getenv('MODEL_NAME')
@@ -189,8 +191,8 @@ def main():
     # viz_utils.transform_rgb_tiff_to_png(rgb_tiff_dir)
 
 
-start = time.time()
-main()
-end = time.time()
-total_time = end - start
-print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+# start = time.time()
+# main()
+# end = time.time()
+# total_time = end - start
+# print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
