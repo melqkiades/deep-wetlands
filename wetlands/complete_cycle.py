@@ -3,7 +3,7 @@ import time
 
 from dotenv import load_dotenv, dotenv_values
 
-from wetlands import generate_ndwi, generate_sar, train_model, map_wetlands
+from wetlands import generate_ndwi, generate_sar, train_model, map_wetlands, estimate_water, performance_evaluator
 
 
 def main():
@@ -15,6 +15,8 @@ def main():
     generate_sar.full_cycle()
     train_model.full_cycle()
     map_wetlands.full_cycle()
+    estimate_water.main()
+    performance_evaluator.full_cycle()
 
 
 start = time.time()
