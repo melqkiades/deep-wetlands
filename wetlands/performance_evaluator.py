@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 
 import numpy
@@ -23,10 +24,13 @@ def convert_annotated_data_to_png():
 
 def rename_prediction_images(model_name):
 
-    # performance_dir = '/tmp/performance_evaluator/'
+    performance_dir = '/tmp/performance_evaluator/'
+    if not os.path.isdir(performance_dir):
+        os.mkdir(performance_dir)
+
     # performance_dir = '/tmp/descending_otsu_flacksjon_exported_images/'
-    performance_dir = f'/tmp/descending_{model_name}_flacksjon_exported_images/'
-    [os.rename(performance_dir + f, performance_dir + f[:8] + f'_{model_name}_bw.png') for f in os.listdir(performance_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
+    predictions_dir = f'/tmp/descending_{model_name}_flacksjon_exported_images/'
+    [shutil.copyfile(predictions_dir + f, performance_dir + f[:8] + f'_{model_name}_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
 
 
 def iterate(model_name):
@@ -355,22 +359,27 @@ def toy_example():
     plt.show()
 
 
-def main():
+def full_cycle():
     load_dotenv()
 
+    model_name = os.getenv('MODEL_NAME')
     # model_name = 'otsu'
     # model_name = 'otsu_gaussian_95'
     # model_name = 'Orebro lan_mosaic_2018-07-04_64x64_sar_VH_20-epochs_0.00005-lr_42-rand'
-    model_name = 'pred'
+    # model_name = 'pred'
 
     # convert_annotated_data_to_png()
-    # rename_prediction_images(model_name)
+    rename_prediction_images(model_name)
     iterate(model_name)
     # toy_example()
 
 
-start = time.time()
-main()
-end = time.time()
-total_time = end - start
-print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+def main():
+    full_cycle()
+
+
+# start = time.time()
+# main()
+# end = time.time()
+# total_time = end - start
+# print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
