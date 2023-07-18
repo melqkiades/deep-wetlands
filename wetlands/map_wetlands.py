@@ -5,7 +5,6 @@ import time
 import numpy as np
 import rasterio as rio
 import torch
-import wandb
 from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
 from rasterio.windows import Window
@@ -13,7 +12,8 @@ import geopandas as gpd
 from osgeo import gdal
 from osgeo import ogr
 
-from wetlands import train_model, utils, viz_utils, wandb_utils
+from model import model_factory
+from wetlands import utils, viz_utils, wandb_utils
 
 
 def visualize_predicted_image(image, model, device):
@@ -129,6 +129,7 @@ def full_cycle():
     patch_size = int(os.getenv('PATCH_SIZE'))
     sar_polarization = os.getenv('SAR_POLARIZATION')
     tif_file = os.getenv('SAR_TIFF_FILE')
+    cnn_type = os.getenv('CNN_TYPE')
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20180505T052314_20180505T052339_021765_0258EB_0EB0.tif'
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
     # tif_file = '/tmp/bulk_export_sar_flacksjon/S1A_IW_GRDH_1SDV_20211016T052340_20211016T052405_040140_04C0F0_3BEE.tif'
@@ -139,7 +140,7 @@ def full_cycle():
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     pred_file = os.getenv('PREDICTIONS_FILE')
     # pred_file = '/tmp/water_estimation/20211016_predictions_flacksjon.tif'
-    model = train_model.load_model(model_path, device)
+    model = model_factory.load_model(cnn_type, model_path, device)
     pred_mask = visualize_predicted_image(image, model, device)
     generate_raster_image(1 - pred_mask, pred_file, tif_file, patch_size)
     polygonize_raster_full(cwd, pred_file, shape_name, start_date)

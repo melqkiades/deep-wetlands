@@ -8,11 +8,11 @@ from tqdm.notebook import tqdm
 import pandas as pd
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import rasterio as rio
 
-from model.unet import Unet
+from loss_functions import loss_function_factory
+from model import model_factory
 from wetlands import utils
 from wetlands.jaccard_similarity import calculate_intersection_over_union
 
@@ -67,42 +67,6 @@ def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir):
         )
     }
     return dataloaders
-
-
-def visualize_batch(batch, batch_size):
-    fig, ax = plt.subplots(2, 4, figsize=(batch_size*3, batch_size*1.5))
-
-    for i in range(batch_size):
-        image = batch[0][i].cpu().numpy()
-        mask = batch[1][i].cpu().numpy()
-
-        image = image.transpose((1, 2, 0))
-        mask = mask.transpose((1, 2, 0)).squeeze()
-
-        image = (image * 255.0).astype("uint8")
-        mask = (mask * 255.0).astype("uint8")
-
-        ax[0, i].imshow(image, cmap='gray')
-        ax[1, i].imshow(mask)
-        plt.axis("off")
-
-    plt.tight_layout()
-    plt.show()
-
-
-class DiceLoss(nn.Module):
-    def __init__(self, lambda_=1.):
-        super(DiceLoss, self).__init__()
-        self.lambda_ = lambda_
-
-    def forward(self, y_pred, y_true):
-        y_pred = y_pred[:, 0].view(-1)
-        y_true = y_true[:, 0].view(-1)
-        intersection = (y_pred * y_true).sum()
-        dice_loss = (2. * intersection  + self.lambda_) / (
-            y_pred.sum() + y_true.sum() + self.lambda_
-        )
-        return 1. - dice_loss
 
 
 def train(model, dataloader, criterion, optimizer, device):
@@ -176,28 +140,6 @@ def save_model(model, model_dir, model_file):
     print(f'Model successfully saved to {model_path}')
 
 
-def load_model(model_file, device):
-    unet_init_dim = int(os.getenv('UNET_INIT_DIM'))
-    unet_blocks = int(os.getenv('UNET_BLOCKS'))
-    loaded_model = Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks)
-    loaded_model.to(device)
-    loaded_model.load_state_dict(torch.load(model_file, map_location=device))
-    loaded_model.eval()
-
-    print('Model file {} successfully loaded.'.format(model_file))
-
-    return loaded_model
-
-
-def plot_single_sar_image(model, tiles_data, images_dir, ndwi_masks_dir, device):
-    i = 120
-    model.eval()
-    index = tiles_data[tiles_data.split == 'test'].iloc[i]['id']
-    image_path = images_dir + str(index) + '-sar.tif'
-    image = rio.open(image_path).read()
-    print(image.shape)
-
-
 def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device):
     i = 120
     model.eval()
@@ -242,8 +184,8 @@ def full_cycle():
     orbit_pass = os.getenv('ORBIT_PASS')
     patch_size = int(os.getenv('PATCH_SIZE'))
     ndwi_input = os.getenv('NDWI_INPUT')
-    unet_init_dim = int(os.getenv('UNET_INIT_DIM'))
-    unet_blocks = int(os.getenv('UNET_BLOCKS'))
+    loss_function_name = os.getenv('LOSS_FUNCTION')
+    cnn_type = os.getenv('CNN_TYPE')
 
     config = {
         "learning_rate": learning_rate,
@@ -257,6 +199,8 @@ def full_cycle():
         "date": date,
         "polarization": polarization,
         "orbit_pass": orbit_pass,
+        "loss_function": loss_function_name,
+        "cnn_type": cnn_type,
     }
 
     wandb.init(project="test-project", entity="deep-wetlands", config=config)
@@ -276,10 +220,14 @@ def full_cycle():
 
     dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir)
 
-    model = Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks)
+    # model = Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks)
+    model = model_factory.create_model(cnn_type)
     print(model)
     print('Model parameters', sum(param.numel() for param in model.parameters()))
-    criterion = DiceLoss()
+    # criterion = DiceLoss()
+    # criterion = torch.nn.CrossEntropyLoss()
+    # criterion = torch.nn.BCELoss()
+    criterion = loss_function_factory.create_loss_function(loss_function_name)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     model.to(device)
@@ -362,13 +310,14 @@ def load_and_test():
     model_file = os.getenv('MODEL_FILE')
     images_dir = os.getenv('SAR_DIR') + '/'
     ndwi_masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
+    cnn_type = os.getenv('CNN_TYPE')
     tiles_data_file = os.getenv('TILES_FILE')
     tiles_data = pd.read_csv(tiles_data_file)
 
     # Check is GPU is enabled
     device = utils.get_device()
 
-    model = load_model(model_file, device)
+    model = model_factory.load_model(cnn_type, model_file, device)
     evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 

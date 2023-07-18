@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 from PIL import Image
 
-from wetlands import train_model, utils, viz_utils, map_wetlands, wandb_utils
+from model import model_factory
+from wetlands import utils, viz_utils, map_wetlands, wandb_utils
 
 
 def visualize_predicted_image(image, model, device, file_name, model_name):
@@ -147,10 +148,11 @@ def full_cycle(model_name):
     model_file = os.getenv('MODEL_FILE')
     # model_file = '/tmp/fresh-water-204_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand.pth'
     study_area = os.getenv('STUDY_AREA')
+    cnn_type = os.getenv('CNN_TYPE')
     sar_polarization = os.getenv('SAR_POLARIZATION')
     if model_name not in ['otsu', 'otsu_gaussian']:
         model_path = wandb_utils.get_model_path()
-        model = train_model.load_model(model_path, device)
+        model = model_factory.load_model(cnn_type, model_path, device)
     else:
         model = None
 
