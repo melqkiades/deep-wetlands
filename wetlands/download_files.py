@@ -70,7 +70,7 @@ def get_area_of_interest(area_name):
     return areas_of_interest[area_name]
 
 
-def download_ndwi(region):
+def download_ndwi_mask(region):
     product = 'COPERNICUS/S2'
     shape_name = os.getenv("REGION_NAME")
     cloud_pct = 10
@@ -83,20 +83,43 @@ def download_ndwi(region):
     ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
 
     # Create NDWI mask
-    ndwiThreshold = ndwi.gte(0.0)
-    ndwiMask = ndwiThreshold.updateMask(ndwiThreshold)
-    semiNdwiImage = ndwiThreshold.neq(0.0)
-    semiNdwiMask = ndwiThreshold.eq(0.0)
-    new_image = semiNdwiMask.multiply(0.5).add(semiNdwiImage.multiply(semiNdwiMask.neq(0.0)))
-    new_image = new_image.add(semiNdwiImage)
-    semiNdwiMask = semiNdwiMask.multiply(0.5).add(ndwiThreshold.multiply(ndwiThreshold.eq(0.0)))
+    ndwi_threshold = ndwi.gte(0.0)
+    semi_ndwi_image = ndwi_threshold.neq(0.0)
+    semi_ndwi_mask = ndwi_threshold.eq(0.0)
+    new_image = semi_ndwi_mask.multiply(0.5).add(semi_ndwi_image.multiply(semi_ndwi_mask.neq(0.0)))
+    new_image = new_image.add(semi_ndwi_image)
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
     file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_mask'
-    # file_name = 'small_sweden_ndwi_mask'
-    newImageTask = export_image(new_image, file_name, region, folder)
+    task = export_image(new_image, file_name, region, folder)
+
+
+def download_mndwi_mask(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    mndwi = image.normalizedDifference(['B3', 'B11']).rename('MNDWI')
+
+    # Create MNDWI mask
+    mndwi_threshold = mndwi.gte(0.0)
+    semi_mndwi_image = mndwi_threshold.neq(0.0)
+    semi_mndwi_mask = mndwi_threshold.eq(0.0)
+    new_image = semi_mndwi_mask.multiply(0.5).add(semi_mndwi_image.multiply(semi_mndwi_mask.neq(0.0)))
+    new_image = new_image.add(semi_mndwi_image)
+
+    folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_mndwi_mask'
+    task = export_image(mndwi, file_name, region, folder)
 
 
 def download_ndwi_range(region):
@@ -115,7 +138,7 @@ def download_ndwi_range(region):
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
     file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_range'
-    newImageTask = export_image(ndwi, file_name, region, folder)
+    task = export_image(ndwi, file_name, region, folder)
 
 
 def get_region():
@@ -179,8 +202,8 @@ def export_image(image, filename, region, folder):
         image=image,
         driveFolder=folder,
         scale=10,
-        # region=region.geometry(),
-        region=region,
+        region=region.geometry(),
+        # region=region,
         description=unidecode(filename),
         fileFormat='GeoTIFF',
         crs='EPSG:4326',
@@ -331,11 +354,11 @@ def bulk_export_ndwi(area_name):
 
     def create_ndwi_mask(image):
         ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI-collection')
-        ndwiThreshold = ndwi.gte(0.0)
-        semiNdwiImage = ndwiThreshold.neq(0.0)
-        semiNdwiMask = ndwiThreshold.eq(0.0)
-        new_image = semiNdwiMask.multiply(0.5).add(semiNdwiImage.multiply(semiNdwiMask.neq(0.0)))
-        new_image = new_image.add(semiNdwiImage).rename('NDWI-mask')
+        ndwi_threshold = ndwi.gte(0.0)
+        semi_ndwi_image = ndwi_threshold.neq(0.0)
+        semi_ndwi_mask = ndwi_threshold.eq(0.0)
+        new_image = semi_ndwi_mask.multiply(0.5).add(semi_ndwi_image.multiply(semi_ndwi_mask.neq(0.0)))
+        new_image = new_image.add(semi_ndwi_image).rename('NDWI-mask')
 
         return new_image
         # return ee.Image(image).addBands(ndwi).addBands(new_image).copyProperties(image)
@@ -460,9 +483,10 @@ def main():
     utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
     # region = get_area_of_interest('small_sweden')
-    # download_ndwi(region)
+    download_ndwi_mask(region)
+    download_mndwi_mask(region)
     download_sar(region)
-    download_ndwi_range(region)
+    # download_ndwi_range(region)
     # download_sar_vv_plus_vh(region)
     # bulk_export_sar(study_area)
     # bulk_export_ndwi(study_area)
