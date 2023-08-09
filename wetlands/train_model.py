@@ -204,6 +204,7 @@ def full_cycle():
         "loss_function": loss_function_name,
         "cnn_type": cnn_type,
     }
+    config.update(dotenv_values())
 
     wandb.init(project="test-project", entity="deep-wetlands", config=config)
     config = dotenv_values()
