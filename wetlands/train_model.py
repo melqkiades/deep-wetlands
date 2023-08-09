@@ -13,7 +13,7 @@ import rasterio as rio
 
 from loss_functions import loss_function_factory
 from model import model_factory
-from wetlands import utils
+from wetlands import utils, map_wetlands, viz_utils
 from wetlands.jaccard_similarity import calculate_intersection_over_union
 
 
@@ -186,6 +186,8 @@ def full_cycle():
     ndwi_input = os.getenv('NDWI_INPUT')
     loss_function_name = os.getenv('LOSS_FUNCTION')
     cnn_type = os.getenv('CNN_TYPE')
+    band = os.getenv('SAR_POLARIZATION')
+    tiff_dir = os.getenv('BULK_EXPORT_DIR')
 
     config = {
         "learning_rate": learning_rate,
@@ -274,9 +276,25 @@ def full_cycle():
         predicted_image = wandb.Image(predicted_image, caption="Predicted image")
         # mask_img = wandb.Image(mask_img, caption="Mask image")
 
+        tiff_file = 'S1B_IW_GRDH_1SDV_20211115T052235_20211115T052300_029594_038826_6CF2.tif'
+        tiff_path = os.path.join(tiff_dir, tiff_file)
+        tiff_image = viz_utils.load_image(tiff_path, band, ignore_nan=True)
+        pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
+
+        full_mask_img = wandb.Image(tiff_image, masks={
+            "predictions": {
+                "mask_data": pred_mask,
+                "class_labels": class_labels
+            },
+        }, caption=["Full water detection", "fwd", "fwdm"])
+
+        # Count values of full_pred array
+
+        full_pred = wandb.Image(pred_mask, caption="Full prediction")
+
         metrics = {
             **train_metrics, **val_metrics, 'prediction': predicted_image,
-            'mask': mask_img
+            'mask': mask_img, 'full_pred': full_pred, 'full_mask': full_mask_img
         }
 
         print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
@@ -292,6 +310,17 @@ def full_cycle():
     save_model(model, model_dir, model_file)
 
     evaluate_single_image(model, tiles_data, images_dir, masks_dir, device)
+
+    tiff_dir = os.getenv('BULK_EXPORT_DIR')
+    tiff_file = 'S1B_IW_GRDH_1SDV_20211115T052235_20211115T052300_029594_038826_6CF2.tif'
+    tiff_path = os.path.join(tiff_dir, tiff_file)
+    band = os.getenv('SAR_POLARIZATION')
+    image = viz_utils.load_image(tiff_path, band, ignore_nan=True)
+    pred_mask = map_wetlands.predict_water_mask(image, model, device)
+
+    plt.imshow(pred_mask)
+    plt.show()
+    plt.clf()
 
 
 def intersection_over_union(y_pred, y_true):
