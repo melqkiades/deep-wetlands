@@ -122,6 +122,52 @@ def download_mndwi_mask(region):
     task = export_image(mndwi, file_name, region, folder)
 
 
+def download_awei_mask(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    # // Calculate Automated Water Extraction Index (AWEI)
+    # // AWEI is a Multi-band Index that uses the following bands
+    # // 'BLUE' (B2), GREEN' (B3), 'NIR' (B8), 'SWIR1' (B11) and 'SWIR2' (B12)
+
+    # // Formula for AWEI is as follows
+    # // AWEI = 4 * (GREEN - SWIR2) - (0.25 * NIR + 2.75 * SWIR1)
+
+    # // For more complex indices, you can use the expression() function
+
+    # // Note:
+    # // For the AWEI formula, the pixel values need to converted to reflectances
+    # // Multiplyng the pixel values by 'scale' gives us the reflectance value
+    # // The scale value is 0.0001 for Sentinel-2 dataset
+
+    awei = image.expression(
+        '4*(GREEN - SWIR1) - (0.25*NIR + 2.75*SWIR2)', {
+          'GREEN': image.select('B3'),#.multiply(0.0001),
+          'NIR': image.select('B8'),#.multiply(0.0001),
+          'SWIR1': image.select('B11'),#.multiply(0.0001),
+          'SWIR2': image.select('B12'),#.multiply(0.0001),
+    }).rename('awei')
+
+    # Create MNDWI mask
+    awei_threshold = awei.gte(0.0)
+    semi_awei_image = awei_threshold.neq(0.0)
+    semi_awei_mask = awei_threshold.eq(0.0)
+    new_image = semi_awei_mask.multiply(0.5).add(semi_awei_image.multiply(semi_awei_mask.neq(0.0)))
+    new_image = new_image.add(semi_awei_image)
+
+    folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask'
+    task = export_image(awei, file_name, region, folder)
+
+
 def download_ndwi_range(region):
     product = 'COPERNICUS/S2'
     shape_name = os.getenv("REGION_NAME")
@@ -484,7 +530,8 @@ def main():
     region = get_region()
     # region = get_area_of_interest('small_sweden')
     download_ndwi_mask(region)
-    download_mndwi_mask(region)
+    # download_mndwi_mask(region)
+    # download_awei_mask(region)
     download_sar(region)
     # download_ndwi_range(region)
     # download_sar_vv_plus_vh(region)
