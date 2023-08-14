@@ -234,6 +234,7 @@ def full_cycle():
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     model.to(device)
+    max_score = 0
     for epoch in range(1, n_epochs + 1):
         print("\nEpoch {}/{} {}".format(epoch, n_epochs, time.strftime("%Y/%m/%d-%H:%M:%S")))
         print("-" * 10)
@@ -301,10 +302,11 @@ def full_cycle():
         print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
         wandb.log(metrics)
 
-        if epoch == 2 or epoch % 5 == 0:
-            model_name = utils.generate_model_file_name(epoch)
-            model_file = f'{run_name}_{model_name}.pth'
+        if metrics['val_iou'] > max_score:
+            max_score = metrics['val_iou']
+            model_file = f'{run_name}_best_model.pth'
             save_model(model, model_dir, model_file)
+            print(f'New best model found on epoch {epoch}. Validation IoU: {max_score}')
 
     model_name = os.getenv("MODEL_NAME")
     model_file = f'{run_name}_{model_name}.pth'
