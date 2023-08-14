@@ -212,6 +212,7 @@ def full_cycle():
     run_name = wandb.run.name
     utils.plant_random_seed(seed)
 
+    utils.create_tiles_file()
     images_dir = os.getenv('SAR_DIR') + '/'
     masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
     tiles_data_file = os.getenv('TILES_FILE')
