@@ -4,7 +4,6 @@ import time
 
 import numpy
 import numpy as np
-import pandas
 import rasterio
 import rasterio as rio
 import rasterio.mask
@@ -13,7 +12,7 @@ from dotenv import load_dotenv, dotenv_values
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from wetlands import utils, viz_utils, geo_utils
+from wetlands import utils, geo_utils
 
 
 def export_sar_data(tiles, tif_file):
@@ -25,7 +24,7 @@ def export_sar_data(tiles, tif_file):
         minValue = numpy.nanpercentile(dataset_array, 1)
         maxValue = numpy.nanpercentile(dataset_array, 99)
 
-    exported_files = []
+    nan_tiles = 0
 
     for index in tqdm(range(len(tiles)), total=len(tiles)):
 
@@ -33,18 +32,11 @@ def export_sar_data(tiles, tif_file):
 
             shape = [tiles.iloc[index]['geometry']]
             name = tiles.iloc[index]['id']
-            # print('id', name)
-            # print(type(src), type(shape))
             out_image, out_transform = rio.mask.mask(src, shape, crop=True)
             if np.isnan(out_image).any():
-                raise ValueError(f'An image contains NaN values: {name}')
-            # Crop out black (zero) border
-            # _, x_nonzero, y_nonzero = np.nonzero(out_image)
-            # out_image = out_image[
-            #     :,
-            #     np.min(x_nonzero):np.max(x_nonzero),
-            #     np.min(y_nonzero):np.max(y_nonzero)
-            # ]
+                nan_tiles += 1
+                continue
+
             if out_image.shape[1] == patch_size + 1:
                 out_image = out_image[:, :-1, :]
             if out_image.shape[2] == patch_size + 1:
@@ -86,9 +78,8 @@ def export_sar_data(tiles, tif_file):
             # But we want to convert to RGB in uint8 and save it:
             Image.fromarray((colored_image[:, :, :3] * 255).astype(np.uint8)).save(temp_png)
 
-            exported_files.append({'index': tiles.index.values[index], 'id': name})
-
-    return exported_files
+    if nan_tiles > 0:
+        print(f'Warning: There were {nan_tiles} tiles with NaN values.')
 
 
 def full_cycle():
@@ -103,42 +94,7 @@ def full_cycle():
     geoboundary = utils.get_region_boundaries(region_name, file_name)
 
     tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
-    # export_sar_data(tiles, tif_file)
-    tiles_list = export_sar_data(tiles, tif_file)
-
-    tiles_dataframe = pandas.DataFrame(tiles_list)
-    tiles_dataframe.set_index('index', inplace=True)
-    tiles_dataframe['split'] = 'test'
-    num_rows = len(tiles_dataframe)
-    test_rows = int(num_rows * 0.8)
-    tiles_dataframe.loc[tiles_dataframe.head(test_rows).index, 'split'] = 'train'
-    tiles_file = os.getenv("TILES_FILE")
-    tiles_dataframe.to_csv(tiles_file, columns=['id', 'split'], index_label='index')
-
-
-def full_cycle_with_visualization():
-    file_name = os.getenv('GEOJSON_FILE')
-    region_name = os.getenv('REGION_NAME')
-    sar_file = os.getenv('SAR_TIFF_FILE')
-    country_code = os.getenv('COUNTRY_CODE')
-    export_folder = os.getenv('SAR_DIR')
-    cwd = os.getenv('CWD_DIR')
-    region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
-    patch_size = int(os.getenv('PATCH_SIZE'))
-
-    utils.download_country_boundaries(country_code, region_admin_level, file_name)
-    geoboundary = utils.get_region_boundaries(region_name, file_name)
-    utils.show_region_boundaries(geoboundary, region_name)
-    viz_utils.visualize_sentinel2_image(geoboundary, region_name, sar_file)
-    output_file = cwd + '{}.geojson'.format(region_name)
-    tiles = geo_utils.generate_tiles(sar_file, output_file, region_name, size=patch_size)
-    viz_utils.visualize_tiles(geoboundary, region_name, sar_file, tiles)
-    tiles = geo_utils.get_tiles(region_name, sar_file, geoboundary, patch_size)
-    viz_utils.show_crop(sar_file, [tiles.iloc[10]['geometry']])
-
-    export_sar_data(tiles, sar_file)
-    example_file = export_folder + '/sala_kommun-1533-sar.tif'
-    viz_utils.visualize_image_from_file(example_file)
+    export_sar_data(tiles, tif_file)
 
 
 def main():
@@ -147,7 +103,6 @@ def main():
     print(json.dumps(config, indent=4))
 
     full_cycle()
-    # full_cycle_with_visualization()
 
 
 # start = time.time()

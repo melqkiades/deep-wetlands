@@ -11,7 +11,7 @@ from matplotlib.colors import ListedColormap
 import rasterio.mask
 from tqdm import tqdm
 
-from wetlands import utils, viz_utils, geo_utils
+from wetlands import utils, geo_utils
 
 from dotenv import load_dotenv, dotenv_values
 
@@ -26,24 +26,19 @@ def export_ndwi_mask_data(tiles, tif_file):
         minValue = np.nanpercentile(dataset_array, 1)
         maxValue = np.nanpercentile(dataset_array, 99)
 
+    nan_tiles = 0
+
     for index in tqdm(range(len(tiles)), total=len(tiles)):
 
         with rio.open(tif_file) as src:
 
             shape = [tiles.iloc[index]['geometry']]
             name = tiles.iloc[index]['id']
-            # print('id', name)
-            # print(type(src), type(shape))
             out_image, out_transform = rio.mask.mask(src, shape, crop=True)
             if np.isnan(out_image).any():
-                raise ValueError(f'An image contains NaN values: {name}')
-            # Crop out black (zero) border
-            # _, x_nonzero, y_nonzero = np.nonzero(out_image)
-            # out_image = out_image[
-            #     :,
-            #     np.min(x_nonzero):np.max(x_nonzero),
-            #     np.min(y_nonzero):np.max(y_nonzero)
-            # ]
+                nan_tiles += 1
+                continue
+
             if out_image.shape[1] == patch_size + 1:
                 out_image = out_image[:, :-1, :]
             if out_image.shape[2] == patch_size + 1:
@@ -86,6 +81,9 @@ def export_ndwi_mask_data(tiles, tif_file):
             # But we want to convert to RGB in uint8 and save it:
             Image.fromarray((colored_image[:, :, :3] * 255).astype(np.uint8)).save(temp_png)
 
+    if nan_tiles > 0:
+        print(f'Warning: There were {nan_tiles} tiles with NaN values.')
+
 
 def full_cycle():
     file_name = os.getenv('GEOJSON_FILE')
@@ -99,60 +97,7 @@ def full_cycle():
     geoboundary = utils.get_region_boundaries(region_name, file_name)
 
     tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
-    # print(tiles.columns.values)
     export_ndwi_mask_data(tiles, tif_file)
-    # tiles['split'] = 'train'
-    # num_rows = len(tiles)
-    # test_rows = int(num_rows * 0.2)
-    # tiles.loc[tiles.tail(test_rows).index, 'split'] = 'test'
-    # tiles.to_csv('/tmp/my_tiles.csv', columns=['id', 'split'], index_label='index')
-
-
-def full_cycle_with_visualization():
-
-    file_name = os.getenv('GEOJSON_FILE')
-    region_name = os.getenv('REGION_NAME')
-    country_code = os.getenv('COUNTRY_CODE')
-    region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
-    export_folder = os.getenv('NDWI_MASK_DIR')
-    patch_size = int(os.getenv('PATCH_SIZE'))
-    cwd = os.getenv('CWD_DIR')
-    print('Shape name', region_name)
-
-    utils.download_country_boundaries(country_code, region_admin_level, file_name)
-    geoboundary = utils.get_region_boundaries(region_name, file_name)
-    utils.show_region_boundaries(geoboundary, region_name)
-    tif_file = os.getenv('NDWI_TIFF_FILE')
-    viz_utils.visualize_sentinel2_image(geoboundary, region_name, tif_file)
-
-    output_file = cwd + '{}.geojson'.format(region_name)
-    tiles = geo_utils.generate_tiles(tif_file, output_file, region_name, size=patch_size)
-    viz_utils.visualize_tiles(geoboundary, region_name, tif_file, tiles)
-    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
-    # viz_utils.show_crop(tif_file, [tiles.iloc[10]['geometry']])
-    # viz_utils.show_crop(tif_file, [tiles.iloc[20]['geometry']])
-    # viz_utils.show_crop(tif_file, [tiles.iloc[30]['geometry']])
-    # viz_utils.show_crop(tif_file, [tiles.iloc[40]['geometry']])
-    # viz_utils.show_crop(tif_file, [tiles.iloc[50]['geometry']])
-    # viz_utils.show_crop(tif_file, [tiles.iloc[60]['geometry']])
-    # viz_utils.show_crop(tif_file, [tiles.iloc[70]['geometry']])
-    # viz_utils.show_crop(tif_file, [tiles.iloc[80]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[0]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[1]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[2]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[3]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[4]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[5]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[6]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[7]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[8]['geometry']])
-    viz_utils.show_crop(tif_file, [tiles.iloc[9]['geometry']])
-
-    print(tiles.count())
-
-    # export_ndwi_mask_data(tiles, tif_file)
-    # example_file = export_folder + '/sala_kommun-1533-ndwi_mask.tif'
-    # viz_utils.visualize_image_from_file(example_file)
 
 
 def main():
@@ -161,7 +106,6 @@ def main():
     print(json.dumps(config, indent=4))
 
     full_cycle()
-    # full_cycle_with_visualization()
 
 
 # start = time.time()
