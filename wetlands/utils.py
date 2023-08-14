@@ -6,6 +6,7 @@ from pathlib import Path
 import geojson
 import geopandas
 import numpy as np
+import pandas
 import requests
 import torch
 from dotenv import load_dotenv
@@ -86,6 +87,39 @@ def generate_model_file_name(epochs=None):
     # print(model_name)
 
     return model_name
+
+
+def create_tiles_file():
+    sar_dir = os.getenv('SAR_DIR')
+    ndwi_dir = os.getenv('NDWI_MASK_DIR')
+
+    sar_files = [f for f in os.listdir(sar_dir) if f.endswith('.tif')]
+    ndwi_files = [f for f in os.listdir(ndwi_dir) if f.endswith('.tif')]
+    sar_files.sort()
+    ndwi_files.sort()
+
+    # Remove the -sar.tif suffix from the file name
+    sar_files = [f.replace('-sar.tif', '') for f in sar_files]
+    ndwi_files = [f.replace('-ndwi_mask.tif', '') for f in ndwi_files]
+
+    # Find the common files in both folders
+    common_files = list(set(sar_files) & set(ndwi_files))
+    region_name = os.getenv('REGION_NAME').lower().replace(' ', '_')
+    common_indexes = [int(f.replace(region_name + '-', '')) for f in common_files if region_name in f]
+
+    # Create a dataframe from common_files and common_indexes and sort it by id
+    tiles_data_frame = pandas.DataFrame({'index': common_indexes, 'id': common_files})
+    tiles_data_frame.set_index('index', inplace=True)
+    tiles_data_frame = tiles_data_frame.sort_values(by=['index'])
+
+    tiles_data_frame['split'] = 'test'
+    num_rows = len(tiles_data_frame)
+    test_rows = int(num_rows * 0.8)
+    tiles_data_frame.loc[tiles_data_frame.head(test_rows).index, 'split'] = 'train'
+    tiles_file = os.getenv("TILES_FILE")
+    tiles_data_frame.to_csv(tiles_file, columns=['id', 'split'], index_label='index')
+
+    print('There are a total of {} tiles'.format(num_rows))
 
 
 def main():
