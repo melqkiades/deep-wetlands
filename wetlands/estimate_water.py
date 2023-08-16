@@ -160,6 +160,8 @@ def full_cycle(model_name):
     incomplete_images = 0
 
     for tiff_file in tqdm.tqdm(sorted(filenames)):
+        if not tiff_file.endswith('.tif'):
+            continue
         results = get_prediction_image(tiff_dir + '/' + tiff_file, sar_polarization, model, device, model_name)
 
         if results is None:
