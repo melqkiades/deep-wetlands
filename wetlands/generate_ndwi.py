@@ -20,6 +20,8 @@ def export_ndwi_mask_data(tiles, tif_file):
 
     export_folder = os.getenv('NDWI_MASK_DIR')
     patch_size = int(os.getenv('PATCH_SIZE'))
+    water_index = os.getenv('WATER_INDEX')
+    ndwi_input = os.getenv('NDWI_INPUT')
 
     with rio.open(tif_file) as src:
         dataset_array = src.read()
@@ -63,12 +65,12 @@ def export_ndwi_mask_data(tiles, tif_file):
             })
 
             # Save the cropped image as a temporary TIFF file.
-            temp_tif = export_folder + '/{}-ndwi_mask.tif'.format(name)
+            temp_tif = export_folder + f'/{name}-{water_index}_{ndwi_input}.tif'
             with rasterio.open(temp_tif, "w", **out_meta) as dest:
                 dest.write(out_image)
 
             # Save the cropped image as a temporary PNG file.
-            temp_png = export_folder + '/{}-ndwi_mask.png'.format(name)
+            temp_png = export_folder + f'/{name}-{water_index}_{ndwi_input}.png'
 
             # Get the color map by name:
             # cm = plt.get_cmap('viridis')
