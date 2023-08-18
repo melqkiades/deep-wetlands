@@ -206,10 +206,16 @@ def full_cycle():
     }
     config.update(dotenv_values())
 
+    # Configure the wandb run
     wandb.init(project="test-project", entity="deep-wetlands", config=config)
     config = dotenv_values()
     print(json.dumps(config, indent=4))
     run_name = wandb.run.name
+    wandb.run.define_metric("val_iou", summary="max")
+    wandb.run.define_metric("val_loss", summary="min")
+    wandb.run.define_metric("train_iou", summary="max")
+    wandb.run.define_metric("train_loss", summary="min")
+
     utils.plant_random_seed(seed)
 
     utils.create_tiles_file()
