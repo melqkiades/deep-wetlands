@@ -120,6 +120,20 @@ def iterate(model_name):
     FN = confusion_matrix[1, 0]
 
     print(TP, TN, FP, FN)
+    print('True Positives:', TP)
+    print('True Negatives:', TN)
+    print('False Positives:', FP)
+    print('False Negatives:', FN)
+    precision = TP / (TP + FP)
+    recall = TP / (TP + FN)
+    f1_score = 2 * (precision * recall) / (precision + recall)
+    print('Precision:', precision)
+    print('Recall:', recall)
+    print('F1 Score:', f1_score)
+    iou = TP / (TP + FP + FN)
+    print('IOU:', iou)
+    accuracy = (TP + TN) / (TP + TN + FP + FN)
+    print('Pixel accuracy:', accuracy)
 
     # ConfusionMatrixDisplay.from_predictions(annotations, predictions, display_labels=['Water', 'Land']).plot()
     # Flatten the arrays
