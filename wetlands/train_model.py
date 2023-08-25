@@ -172,49 +172,38 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 
 def full_cycle():
-    n_epochs = int(os.getenv('EPOCHS'))
-    learning_rate = float(os.getenv('LEARNING_RATE'))
-    seed = int(os.getenv('RANDOM_SEED'))
-    batch_size = int(os.getenv('BATCH_SIZE'))
-    num_workers = int(os.getenv('NUM_WORKERS'))
-    model_dir = os.getenv('MODELS_DIR')
-    region = os.getenv('REGION_ASCII_NAME')
-    date = os.getenv('START_DATE')
-    polarization = os.getenv('SAR_POLARIZATION')
-    orbit_pass = os.getenv('ORBIT_PASS')
-    patch_size = int(os.getenv('PATCH_SIZE'))
-    ndwi_input = os.getenv('NDWI_INPUT')
-    loss_function_name = os.getenv('LOSS_FUNCTION')
-    cnn_type = os.getenv('CNN_TYPE')
-    band = os.getenv('SAR_POLARIZATION')
-    tiff_dir = os.getenv('BULK_EXPORT_DIR')
-
-    config = {
-        "learning_rate": learning_rate,
-        "epochs": n_epochs,
-        "patch_size": patch_size,
-        "ndwi_input": ndwi_input,
-        "batch_size": batch_size,
-        "num_workers": num_workers,
-        "random_seed": seed,
-        "region": region,
-        "date": date,
-        "polarization": polarization,
-        "orbit_pass": orbit_pass,
-        "loss_function": loss_function_name,
-        "cnn_type": cnn_type,
-    }
-    config.update(dotenv_values())
+    config = dotenv_values()
+    # Convert int values to int
+    for key in ['EPOCHS', 'PATCH_SIZE', 'BATCH_SIZE', 'NUM_WORKERS', 'RANDOM_SEED']:
+        config[key] = int(config[key])
+    # Convert float values to float
+    for key in ['LEARNING_RATE']:
+        config[key] = float(config[key])
 
     # Configure the wandb run
-    wandb.init(project="test-project", entity="deep-wetlands", config=config)
-    config = dotenv_values()
+    wandb.init(project="sweeps", entity="deep-wetlands", config=config)
+    config.update(wandb.config)
     print(json.dumps(config, indent=4))
     run_name = wandb.run.name
     wandb.run.define_metric("val_iou", summary="max")
     wandb.run.define_metric("val_loss", summary="min")
     wandb.run.define_metric("train_iou", summary="max")
     wandb.run.define_metric("train_loss", summary="min")
+
+    # Set environment variables
+    for key, value in config.items():
+        os.environ[key] = str(value)
+
+    n_epochs = int(os.getenv('EPOCHS'))
+    learning_rate = float(os.getenv('LEARNING_RATE'))
+    seed = int(os.getenv('RANDOM_SEED'))
+    batch_size = int(os.getenv('BATCH_SIZE'))
+    num_workers = int(os.getenv('NUM_WORKERS'))
+    model_dir = os.getenv('MODELS_DIR')
+    loss_function_name = os.getenv('LOSS_FUNCTION')
+    cnn_type = os.getenv('CNN_TYPE')
+    band = os.getenv('SAR_POLARIZATION')
+    tiff_dir = os.getenv('BULK_EXPORT_DIR')
 
     utils.plant_random_seed(seed)
 

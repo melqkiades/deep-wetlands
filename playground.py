@@ -583,6 +583,24 @@ def open_tiff():
     viz_utils.transform_ndwi_tiff_to_grayscale_png(annotations_dir, band)
 
 
+def set_env_vars():
+    # batch_size = os.getenv('BATCH_SIZE')
+    print('BATCH_SIZE', os.getenv('BATCH_SIZE'))
+    # Update the BATCH_SIZE environment variable
+    # os.environ['BATCH_SIZE'] = '32'
+    # print('BATCH_SIZE', os.getenv('BATCH_SIZE'))
+    print('PATCH_SIZE', os.getenv('PATCH_SIZE'))
+
+    new_env_vars = {
+        'BATCH_SIZE': 32,
+        'PATCH_SIZE': '224',
+    }
+
+    for key, value in new_env_vars.items():
+        os.environ[key] = value
+        print(key, os.getenv(key))
+
+
 def main():
     load_dotenv()
 
@@ -611,7 +629,8 @@ def main():
     # calculate_iou()
     # rename_annotated_files()
     # count_files()
-    open_tiff()
+    # open_tiff()
+    set_env_vars()
 
 
 start = time.time()
