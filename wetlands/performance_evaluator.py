@@ -161,6 +161,8 @@ def full_cycle():
     load_dotenv()
 
     model_name = os.getenv('MODEL_NAME')
+    if model_name == 'otsu_gaussian':
+        model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
 
     convert_annotated_data_to_png()
     rename_prediction_images(model_name)
