@@ -107,6 +107,14 @@ def convert_ndwi_tiff_to_png(tiff_file, out_file, band):
 
     # plt.imshow(image_array, cmap='gray')
     img = Image.fromarray(numpy.uint8(image_array * 255), 'L')
+
+    # Crop the annotated image to fit predicted image size
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    width, height = img.size
+    width = width - width % patch_size
+    height = height - height % patch_size
+    img = img.crop((0, 0, width, height))
+
     img.save(out_file)
 
 

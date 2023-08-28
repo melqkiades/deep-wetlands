@@ -601,6 +601,28 @@ def set_env_vars():
         print(key, os.getenv(key))
 
 
+def crop_image(image_path):
+    # image_path = '/tmp/crops/hjalstaviken_annotated_vh_2018-05-19.png'
+    image = Image.open(image_path)
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    # Get image width and height
+    width, height = image.size
+    width = width - width % patch_size
+    height = height - height % patch_size
+    # print(width, height)
+    image = image.crop((0, 0, width, height))
+    image.save(image_path)
+
+
+# crop all images inside a folder
+def crop_images():
+    folder = '/tmp/performance_evaluator/otsu_gaussian_5_svartadalen_performance'
+    for file in os.listdir(folder):
+        if file.endswith(".png"):
+            image_path = os.path.join(folder, file)
+            crop_image(image_path)
+
+
 def main():
     load_dotenv()
 
@@ -630,7 +652,8 @@ def main():
     # rename_annotated_files()
     # count_files()
     # open_tiff()
-    set_env_vars()
+    # set_env_vars()
+    crop_images()
 
 
 start = time.time()
