@@ -135,6 +135,24 @@ def iterate(model_name):
     accuracy = (TP + TN) / (TP + TN + FP + FN)
     print('Pixel accuracy:', accuracy)
 
+    metrics = {
+        'accuracy': accuracy,
+        'iou': iou,
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1_score,
+        'true_positives': TP,
+        'true_negatives': TN,
+        'false_positives': FP,
+        'false_negatives': FN
+    }
+
+    # Export metrics to CSV
+    metrics_file = f'{performance_dir}/{model_name}_{study_area}_performance.csv'
+    with open(metrics_file, 'w') as f:
+        for key in metrics.keys():
+            f.write("%s,%s\n" % (key, metrics[key]))
+
     # ConfusionMatrixDisplay.from_predictions(annotations, predictions, display_labels=['Water', 'Land']).plot()
     # Flatten the arrays
     annotations = numpy.asarray(annotations).flatten()
