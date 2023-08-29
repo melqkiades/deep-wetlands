@@ -14,11 +14,26 @@ from wetlands import utils
 def get_area_of_interest(area_name):
 
     areas_of_interest = {
-        'flacksjon': ee.Geometry.Polygon(
+        'svartadalen': ee.Geometry.Polygon(
             [[[16.278247539412213, 59.84820707394825],
               [16.363563243757916, 59.84820707394825],
               [16.363563243757916, 59.88922451187625],
               [16.278247539412213, 59.88922451187625]]]),
+        'hjalstaviken': ee.Geometry.Polygon(
+            [[[17.354193647791387, 59.6524467789],
+              [17.414290940298983, 59.6524467789],
+              [17.414290940298983, 59.67634196545758],
+              [17.354193647791387, 59.67634196545758]]]),
+        'hornborgasjon': ee.Geometry.Polygon(
+            [[[13.466285098122098, 58.2702988827537],
+              [13.616034255984822, 58.2702988827537],
+              [13.616034255984822, 58.36453215605784],
+              [13.466285098122098, 58.36453215605784]]]),
+        'mossatrask': ee.Geometry.Polygon(
+            [[[17.245856824526573, 63.80742446253802],
+              [17.36991416526348, 63.80742446253802],
+              [17.36991416526348, 63.851082585346234],
+              [17.245856824526573, 63.851082585346234]]]),
         'ojesjon': ee.Geometry.Polygon(
             [[[16.223059119542746, 59.86626918485007],
               [16.223059119542746, 59.84864122850999],
@@ -29,7 +44,7 @@ def get_area_of_interest(area_name):
               [13.926995174156906, 57.28968100640124],
               [13.978493587242843, 57.28968100640124],
               [13.978493587242843, 57.319539025703946]]]),
-        'hornborgasjon': ee.Geometry.Polygon(
+        'hornborgasjon_big': ee.Geometry.Polygon(
             [[[13.483334875467396, 58.368121823117356],
               [13.483334875467396, 58.2620882538591],
               [13.630963659647083, 58.2620882538591],
@@ -377,7 +392,7 @@ def bulk_export_sar(area_name):
     # batch export to Google Drive
     geetools.batch.Export.imagecollection.toDrive(
         collection,
-        f'bulk_export_sar_{area_name}',
+        f'bulk_export_{area_name}_sar',
         namePattern='{id}',
         scale=10,
         dataType="float",

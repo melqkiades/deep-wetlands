@@ -105,8 +105,16 @@ def convert_ndwi_tiff_to_png(tiff_file, out_file, band):
     image_array[image_array > 0.5] = 1.00
     image_array[image_array <= 0.5] = 0.0
 
-    plt.imshow(image_array, cmap='gray')
+    # plt.imshow(image_array, cmap='gray')
     img = Image.fromarray(numpy.uint8(image_array * 255), 'L')
+
+    # Crop the annotated image to fit predicted image size
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    width, height = img.size
+    width = width - width % patch_size
+    height = height - height % patch_size
+    img = img.crop((0, 0, width, height))
+
     img.save(out_file)
 
 
@@ -146,7 +154,9 @@ def transform_ndwi_tiff_to_grayscale_png(tiff_dir, band):
     print(filenames)
 
     for tiff_file in filenames:
-        tiff_path = tiff_dir + tiff_file
+        if not tiff_file.endswith('.tif'):
+            continue
+        tiff_path = f'{tiff_dir}/{tiff_file}'
         out_file = tiff_path.replace('.tif', '.png')
         convert_ndwi_tiff_to_png(tiff_path, out_file, band)
 

@@ -172,50 +172,50 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 
 def full_cycle():
+    config = dotenv_values()
+    # Convert int values to int
+    for key in ['EPOCHS', 'PATCH_SIZE', 'BATCH_SIZE', 'NUM_WORKERS', 'RANDOM_SEED']:
+        config[key] = int(config[key])
+    # Convert float values to float
+    for key in ['LEARNING_RATE']:
+        config[key] = float(config[key])
+
+    # Configure the wandb run
+    wandb.init(project="test-project", entity="deep-wetlands", config=config)
+    # wandb.init(project="sweeps", entity="deep-wetlands", config=config)
+    config.update(wandb.config)
+    print(json.dumps(config, indent=4))
+    run_name = wandb.run.name
+    wandb.run.define_metric("val_iou", summary="max")
+    wandb.run.define_metric("val_loss", summary="min")
+    wandb.run.define_metric("train_iou", summary="max")
+    wandb.run.define_metric("train_loss", summary="min")
+
+    # Set environment variables
+    for key, value in config.items():
+        os.environ[key] = str(value)
+
     n_epochs = int(os.getenv('EPOCHS'))
     learning_rate = float(os.getenv('LEARNING_RATE'))
     seed = int(os.getenv('RANDOM_SEED'))
     batch_size = int(os.getenv('BATCH_SIZE'))
     num_workers = int(os.getenv('NUM_WORKERS'))
     model_dir = os.getenv('MODELS_DIR')
-    region = os.getenv('REGION_ASCII_NAME')
-    date = os.getenv('START_DATE')
-    polarization = os.getenv('SAR_POLARIZATION')
-    orbit_pass = os.getenv('ORBIT_PASS')
-    patch_size = int(os.getenv('PATCH_SIZE'))
-    ndwi_input = os.getenv('NDWI_INPUT')
     loss_function_name = os.getenv('LOSS_FUNCTION')
     cnn_type = os.getenv('CNN_TYPE')
     band = os.getenv('SAR_POLARIZATION')
     tiff_dir = os.getenv('BULK_EXPORT_DIR')
 
-    config = {
-        "learning_rate": learning_rate,
-        "epochs": n_epochs,
-        "patch_size": patch_size,
-        "ndwi_input": ndwi_input,
-        "batch_size": batch_size,
-        "num_workers": num_workers,
-        "random_seed": seed,
-        "region": region,
-        "date": date,
-        "polarization": polarization,
-        "orbit_pass": orbit_pass,
-        "loss_function": loss_function_name,
-        "cnn_type": cnn_type,
-    }
-    config.update(dotenv_values())
-
-    wandb.init(project="test-project", entity="deep-wetlands", config=config)
-    config = dotenv_values()
-    print(json.dumps(config, indent=4))
-    run_name = wandb.run.name
     utils.plant_random_seed(seed)
 
     utils.create_tiles_file()
     images_dir = os.getenv('SAR_DIR') + '/'
     masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
     tiles_data_file = os.getenv('TILES_FILE')
+
+    tiff_file = 'S1B_IW_GRDH_1SDV_20211115T052235_20211115T052300_029594_038826_6CF2.tif'
+    tiff_path = os.path.join(tiff_dir, tiff_file)
+    tiff_image = viz_utils.load_image(tiff_path, band, ignore_nan=True)
 
     # Check is GPU is enabled
     device = utils.get_device()
@@ -260,28 +260,6 @@ def full_cycle():
             1: "water",
         }
 
-        sar_image, predicted_image, ndwi_image = evaluate_single_image(
-            model, tiles_data, images_dir, masks_dir, device)
-        int_sar_image = np.array(predicted_image > 0.5).astype(int)
-        ndwi_image = ndwi_image[0]
-        int_ndwi_image = np.array(ndwi_image > 0.5).astype(int)
-        mask_img = wandb.Image(sar_image, masks={
-            "predictions": {
-                "mask_data": int_sar_image,
-                "class_labels": class_labels
-            },
-            "ndwi": {
-                "mask_data": int_ndwi_image,
-                "class_labels": class_labels
-            }
-        }, caption=["Water detection", "fd", "fds"])
-
-        predicted_image = wandb.Image(predicted_image, caption="Predicted image")
-        # mask_img = wandb.Image(mask_img, caption="Mask image")
-
-        tiff_file = 'S1B_IW_GRDH_1SDV_20211115T052235_20211115T052300_029594_038826_6CF2.tif'
-        tiff_path = os.path.join(tiff_dir, tiff_file)
-        tiff_image = viz_utils.load_image(tiff_path, band, ignore_nan=True)
         pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
 
         full_mask_img = wandb.Image(tiff_image, masks={
@@ -296,8 +274,7 @@ def full_cycle():
         full_pred = wandb.Image(pred_mask, caption="Full prediction")
 
         metrics = {
-            **train_metrics, **val_metrics, 'prediction': predicted_image,
-            'mask': mask_img, 'full_pred': full_pred, 'full_mask': full_mask_img
+            **train_metrics, **val_metrics, 'full_pred': full_pred, 'full_mask': full_mask_img
         }
 
         print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
@@ -309,18 +286,7 @@ def full_cycle():
             save_model(model, model_dir, model_file)
             print(f'New best model found on epoch {epoch}. Validation IoU: {max_score}')
 
-    model_name = os.getenv("MODEL_NAME")
-    model_file = f'{run_name}_{model_name}.pth'
-    save_model(model, model_dir, model_file)
-
-    evaluate_single_image(model, tiles_data, images_dir, masks_dir, device)
-
-    tiff_dir = os.getenv('BULK_EXPORT_DIR')
-    tiff_file = 'S1B_IW_GRDH_1SDV_20211115T052235_20211115T052300_029594_038826_6CF2.tif'
-    tiff_path = os.path.join(tiff_dir, tiff_file)
-    band = os.getenv('SAR_POLARIZATION')
-    image = viz_utils.load_image(tiff_path, band, ignore_nan=True)
-    pred_mask = map_wetlands.predict_water_mask(image, model, device)
+    pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
 
     plt.imshow(pred_mask)
     plt.show()

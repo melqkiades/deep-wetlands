@@ -5,6 +5,7 @@ import cv2
 import numpy
 import pandas
 import rasterio
+import seaborn
 import torch
 from PIL import Image
 import rasterio as rio
@@ -17,6 +18,7 @@ from scipy import ndimage
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 
+from evaluation import semantic_segmentation_evaluator
 from wetlands import viz_utils, jaccard_similarity
 
 
@@ -491,6 +493,136 @@ def calculate_iou():
     # print(image1)
 
 
+def calculate_confusion_matrix(Y_pred, Y_val):
+    FP = len(numpy.where(Y_pred - Y_val == 1)[0])
+    FN = len(numpy.where(Y_pred - Y_val == -1)[0])
+    TP = len(numpy.where(Y_pred + Y_val == 2)[0])
+    TN = len(numpy.where(Y_pred + Y_val == 0)[0])
+    cmat = [[TP, FN], [FP, TN]]
+
+    plt.figure(figsize=(6, 6))
+    seaborn.heatmap(cmat / numpy.sum(cmat), cmap="Reds", annot=True, fmt='.2%', square=1, linewidth=2.)
+    plt.xlabel("predictions")
+    plt.ylabel("real values")
+    plt.show()
+
+
+def evaluate_semantic_segmentation_toy_example():
+
+    pred_matrix = numpy.asarray([[1, 1], [1, 1]])
+    gt_matrix = numpy.asarray([[1, 0], [1, 1]])
+
+    calculate_confusion_matrix(pred_matrix, gt_matrix)
+    confusion_matrix = semantic_segmentation_evaluator.calc_semantic_segmentation_confusion([pred_matrix], [gt_matrix])
+    TP = confusion_matrix[1, 1]
+    TN = confusion_matrix[0, 0]
+    FP = confusion_matrix[0, 1]
+    FN = confusion_matrix[1, 0]
+
+    print(TP, TN, FP, FN)
+
+    cmat = [[TP, FN], [FP, TN]]
+
+    plt.figure(figsize=(6, 6))
+    ax = seaborn.heatmap(cmat / numpy.sum(cmat), cmap="Reds", annot=True, fmt='.2%', square=1, linewidth=2.)
+    ax.xaxis.set_ticklabels(['Positive', 'Negative'])
+    ax.yaxis.set_ticklabels(['Positive', 'Negative'])
+    plt.xlabel("Predictions")
+    plt.ylabel("Real values")
+    plt.show()
+
+
+def count_files():
+    # Group files by prefix before underscore and count them
+    path = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/Annotated data/Students/All annotations'
+    files = os.listdir(path)
+    files.sort()
+    # The prefix is the first part of the filename before the first underscore
+    count_dict = {}
+    for file in files:
+        prefix = file.split('_')[0]
+        if prefix in count_dict:
+            count_dict[prefix] += 1
+        else:
+            count_dict[prefix] = 1
+    print(count_dict)
+
+
+def rename_annotated_files():
+    # Rename files
+    path = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/Annotated data/Students/All annotations'
+    for filename in os.listdir(path):
+        if filename.endswith('.tif'):
+            new_filename = filename.replace('mask_sar_VH', 'annotated_vh')
+            new_filename = new_filename.replace('iak_Hornborgasjon', 'Hornborgasjon_annotated_vh')
+            os.rename(os.path.join(path, filename), os.path.join(path, new_filename))
+
+
+def open_tiff():
+    annotations_dir = '/Users/frape/Projects/DeepWetlands/Datasets/wetlands/Annotated data/Students/All annotations/'
+    # tiff_file = os.path.join(annotations_dir, 'Svartadalen_annotated_vh_2014-10-05.tif')
+    # tiff_file = os.path.join(annotations_dir, 'Hjalstaviken_annotated_vh_2014-10-12.tif')
+    # tiff_file = os.path.join(annotations_dir, 'Hornborgasjon_annotated_vh_2015-06-02.tif')
+    tiff_file = os.path.join(annotations_dir, 'Mossatrask_annotated_vh_2014-10-12.tif')
+    tiff_image = rio.open(tiff_file)
+    print(tiff_image.descriptions)
+
+    tiff_file = os.path.join(annotations_dir, 'Hjalstaviken_annotated_vh_2014-10-12.tif')
+    tiff_image = rio.open(tiff_file)
+    print(tiff_image.descriptions)
+
+    tiff_file = os.path.join(annotations_dir, 'Hornborgasjon_annotated_vh_2015-06-02.tif')
+    tiff_image = rio.open(tiff_file)
+    print(tiff_image.descriptions)
+
+    tiff_file = os.path.join(annotations_dir, 'Mossatrask_annotated_vh_2014-10-12.tif')
+    tiff_image = rio.open(tiff_file)
+    print(tiff_image.descriptions)
+
+    band = 'vis-gray'
+    viz_utils.transform_ndwi_tiff_to_grayscale_png(annotations_dir, band)
+
+
+def set_env_vars():
+    # batch_size = os.getenv('BATCH_SIZE')
+    print('BATCH_SIZE', os.getenv('BATCH_SIZE'))
+    # Update the BATCH_SIZE environment variable
+    # os.environ['BATCH_SIZE'] = '32'
+    # print('BATCH_SIZE', os.getenv('BATCH_SIZE'))
+    print('PATCH_SIZE', os.getenv('PATCH_SIZE'))
+
+    new_env_vars = {
+        'BATCH_SIZE': 32,
+        'PATCH_SIZE': '224',
+    }
+
+    for key, value in new_env_vars.items():
+        os.environ[key] = value
+        print(key, os.getenv(key))
+
+
+def crop_image(image_path):
+    # image_path = '/tmp/crops/hjalstaviken_annotated_vh_2018-05-19.png'
+    image = Image.open(image_path)
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    # Get image width and height
+    width, height = image.size
+    width = width - width % patch_size
+    height = height - height % patch_size
+    # print(width, height)
+    image = image.crop((0, 0, width, height))
+    image.save(image_path)
+
+
+# crop all images inside a folder
+def crop_images():
+    folder = '/tmp/performance_evaluator/otsu_gaussian_5_svartadalen_performance'
+    for file in os.listdir(folder):
+        if file.endswith(".png"):
+            image_path = os.path.join(folder, file)
+            crop_image(image_path)
+
+
 def main():
     load_dotenv()
 
@@ -516,7 +648,12 @@ def main():
     # transform_dataset()
     # merge_geotiff()
     # otsu_segmentation()
-    calculate_iou()
+    # calculate_iou()
+    # rename_annotated_files()
+    # count_files()
+    # open_tiff()
+    # set_env_vars()
+    crop_images()
 
 
 start = time.time()
