@@ -14,11 +14,14 @@ def plot_scatter():
 
     data_dir = os.getenv('DATA_DIR') + '/'
     model_name = os.getenv('MODEL_NAME')
+    study_area = os.getenv('STUDY_AREA')
 
     # model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_new_water_estimates_filtered.csv'
     # model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_new_water_estimates_filtered.csv'
-    model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
-    model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
+    # model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
+    # model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
+    model_2018_results = f'/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
+    model_2020_results = f'/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
 
     df_2018 = pandas.read_csv(model_2018_results, header=0, names=['Index', 'Extension', 'Date'])
     df_2018.drop('Index', axis=1, inplace=True)
@@ -40,6 +43,7 @@ def plot_scatter():
     df_2020 = df_2020.reset_index(drop=True)
     # full_df = df_2018.append(df_2020)
     full_df = pandas.concat([df_2018, df_2020])
+    # full_df = pandas.concat([df_2020])
 
     print('2018 DF', len(df_2018))
     print('2020 DF', len(df_2020))
@@ -47,10 +51,12 @@ def plot_scatter():
     # full_df = full_df.drop(full_df[full_df['Date'] < '2016-01-01'].index)
     print(full_df.head())
     print(full_df.dtypes)
-    ax = full_df.plot(x='Date', y='Extension', kind='scatter', title='Flacksjon water extension in time')
+    ax = full_df.plot(x='Date', y='Extension', kind='scatter', title=f'{study_area} water extension in time')
     ax.set_ylabel("Water extension in m2")
     plt.tight_layout()
-    plt.scatter(['2020-08-04', '2018-04-24', '2021-11-21'], [62330, 134579, 86235], c='#ff0000')
+    # plt.scatter(['2020-08-04', '2018-04-24', '2021-11-21'], [62330, 134579, 86235], c='#ff0000')
+
+    full_df.to_csv(f'/tmp/paper_water_estimates_{study_area}.csv')
     # plt.scatter(['2017-04-16', '2020-08-04', '2018-04-24', '2021-11-21'], [115044, 62330, 134579, 86235], c='#ff0000', s=35)
     # plt.scatter(['2017-04-16', '2020-08-04', '2018-04-24', '2021-11-21'], [115044, 62330, 134579, 86235], c='#ff0000', s=80)
     # plt.savefig('/tmp/flacksjon_water_estimates.pdf')
@@ -60,7 +66,8 @@ def plot_scatter():
 
 
 def count_ndwi_water():
-    folder = '/tmp/bulk_export_flacksjon_ndwi/'
+    study_area = os.getenv('STUDY_AREA')
+    folder = f'/tmp/bulk_export_{study_area}_ndwi/'
     # file_name = '20150813T101020_20160319T132810_T33VWG.png'
 
     results_list = []
@@ -101,7 +108,14 @@ def count_ndwi_water():
     data_frame = data_frame[data_frame['Date'].dt.month.isin([4, 5, 6, 7, 8, 9, 10, 11])]
     data_frame = data_frame.drop(data_frame[data_frame['Date'] < '2018-01-01'].index)
     data_frame = data_frame.drop(data_frame[data_frame['Date'] > '2022-12-31'].index)
-    ax = data_frame.plot(x='Date', y='Water', kind='scatter', title='Flacksjon water extension in time22', c='red')
+
+    if study_area == 'ojesjon':
+        bad_images = ['2018-04-02', '2018-11-25', '2018-11-26', '2020-11-20', '2020-11-27', '2021-11-29', '2022-10-08', '2022-10-30']
+        data_frame = data_frame.drop(data_frame[data_frame['Date'].isin(bad_images)].index)
+
+    data_frame.to_csv(f'/tmp/paper_ndwi_water_estimates_{study_area}.csv')
+
+    ax = data_frame.plot(x='Date', y='Water', kind='scatter', title=f'{study_area} water extension in time22', c='red')
 
 
     #
@@ -112,8 +126,10 @@ def count_ndwi_water():
     #
     # model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_new_water_estimates_filtered.csv'
     # model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_new_water_estimates_filtered.csv'
-    model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
-    model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
+    # model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
+    # model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
+    model_2018_results = f'/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
+    model_2020_results = f'/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
 
     df_2018 = pandas.read_csv(model_2018_results, header=0, names=['Index', 'Extension', 'Date'])
     df_2018.drop('Index', axis=1, inplace=True)
@@ -142,11 +158,13 @@ def count_ndwi_water():
     # full_df = full_df.drop(full_df[full_df['Date'] < '2016-01-01'].index)
     print(full_df.head())
     print(full_df.dtypes)
-    full_df.plot(x='Date', y='Extension', kind='scatter', title='Flacksjon water extension in time', ax=ax)
+    full_df.plot(x='Date', y='Extension', kind='scatter', title=f'{study_area} water extension in time', ax=ax)
 
     # Add lines to the plot to connect the scatter dots
-    data_frame.plot(x='Date', y='Water', c='red', ax=ax)
-    full_df.plot(x='Date', y='Extension', ax=ax)
+    # data_frame.plot(x='Date', y='Water', c='red', ax=ax)
+    # full_df.plot(x='Date', y='Extension', ax=ax)
+
+    # plt.scatter(['2020-08-04', '2018-04-24', '2021-11-21'], [62330, 134579, 86235], c='#1e8449')
 
     # plt.savefig('/tmp/open_vegetated_water.pdf')
     plt.show()
