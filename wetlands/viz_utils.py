@@ -106,7 +106,7 @@ def convert_ndwi_tiff_to_png(tiff_file, out_file, band):
     image_array[image_array <= 0.5] = 0.0
 
     # plt.imshow(image_array)
-    plt.imsave(out_file + '_color.png', image_array)
+    plt.imsave(out_file.replace('.png', '_color.png'), image_array)
     img = Image.fromarray(numpy.uint8(image_array * 255), 'L')
 
     # Crop the annotated image to fit predicted image size
