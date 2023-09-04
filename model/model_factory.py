@@ -2,6 +2,7 @@ import os
 
 import torch
 
+from model.old_unet import OldUnet
 from model.unet import Unet
 
 import segmentation_models_pytorch as smp
@@ -13,6 +14,7 @@ def create_model(model_name):
 
     models_dict = {
         'unet': Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks),
+        'old_unet': OldUnet(in_channels=1, out_channels=1),
         'unet_smp':  smp.Unet(encoder_name="resnet34", encoder_weights=None, in_channels=1, classes=1),
         # 'unet2':  smp.Unet(encoder_name="inceptionv4", encoder_weights=None, in_channels=1, classes=1),
         'unet++':  smp.UnetPlusPlus(encoder_name="resnet34", encoder_weights=None, in_channels=1, classes=1),
