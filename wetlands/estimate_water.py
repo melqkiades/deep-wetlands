@@ -46,6 +46,7 @@ def visualize_predicted_image(image, model, device, file_name, model_name):
     # Plotting SAR
     plt.imshow(image[:width, :height], cmap='gray')
     plt.imsave(images_dir + image_date + '_' + file_name + '_sar.png', image)
+    plt.imsave(images_dir + image_date + '_' + file_name + '_sar_bw.png', image, cmap='gray')
 
     # Plotting prediction
     plt.imshow(pred_mask)
@@ -111,6 +112,8 @@ def update_water_estimates(model_name):
     results_dir = os.getenv('RESULTS_DIR')
     if model_name == 'otsu_gaussian':
         model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
+    if model_name not in ['otsu', 'otsu_gaussian']:
+        model_name = wandb_utils.get_run_name()
 
     with open('/Users/frape/tmp/cropped_images/cropped_images.txt') as file:
         lines = [line.rstrip() for line in file]
@@ -125,7 +128,7 @@ def update_water_estimates(model_name):
         print(data_frame.size)
         print(data_frame.columns.values)
 
-        data_frame.plot(x='Date', y='1.0', kind='scatter', title=model_name)
+        data_frame.plot(x='Date', y='1.0', kind='scatter', title=f'{model_name} [{study_area}]')
         plt.savefig(f'{charts_dir}/scatter_{model_name}_{study_area}_new_water_estimates_filtered.png')
         plt.show()
 
@@ -152,6 +155,8 @@ def full_cycle(model_name):
     sar_polarization = os.getenv('SAR_POLARIZATION')
     if model_name not in ['otsu', 'otsu_gaussian']:
         model_path = wandb_utils.get_model_path()
+        model_name = wandb_utils.get_run_name()
+        # model_path = f'/tmp/{model_name}_best_model.pth'
         model = model_factory.load_model(cnn_type, model_path, device)
     else:
         model = None
