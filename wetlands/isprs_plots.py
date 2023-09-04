@@ -10,20 +10,20 @@ from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
 
-def plot_scatter():
+def plot_scatter(results_2018_file, results_2020_file, study_area):
 
     data_dir = os.getenv('DATA_DIR') + '/'
     model_name = os.getenv('MODEL_NAME')
-    study_area = os.getenv('STUDY_AREA')
+    # study_area = os.getenv('STUDY_AREA')
 
     # model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_new_water_estimates_filtered.csv'
     # model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_new_water_estimates_filtered.csv'
     # model_2018_results = '/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
     # model_2020_results = '/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_new_water_estimates_filtered.csv'
-    model_2018_results = f'/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
-    model_2020_results = f'/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
+    # model_2018_results = f'/tmp/descending_Orebro lan_mosaic_2018-07-04_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
+    # model_2020_results = f'/tmp/descending_Orebro lan_mosaic_2020-06-23_sar_VH_20-epochs_0.00005-lr_42-rand_{study_area}_new_water_estimates_filtered.csv'
 
-    df_2018 = pandas.read_csv(model_2018_results, header=0, names=['Index', 'Extension', 'Date'])
+    df_2018 = pandas.read_csv(results_2018_file, header=0, names=['Index', 'Extension', 'Date'])
     df_2018.drop('Index', axis=1, inplace=True)
     df_2018.sort_values(by='Date', inplace=True)
     df_2018['Date'] = pandas.to_datetime(df_2018['Date'])
@@ -32,7 +32,7 @@ def plot_scatter():
     print(df_2018.head())
     print(df_2018.tail())
 
-    df_2020 = pandas.read_csv(model_2020_results, header=0, names=['Index', 'Extension', 'Date'])
+    df_2020 = pandas.read_csv(results_2020_file, header=0, names=['Index', 'Extension', 'Date'])
     df_2020.drop('Index', axis=1, inplace=True)
     df_2020.sort_values(by='Date', inplace=True)
     df_2020['Date'] = pandas.to_datetime(df_2020['Date'])
@@ -56,13 +56,67 @@ def plot_scatter():
     plt.tight_layout()
     # plt.scatter(['2020-08-04', '2018-04-24', '2021-11-21'], [62330, 134579, 86235], c='#ff0000')
 
-    full_df.to_csv(f'/tmp/paper_water_estimates_{study_area}.csv')
+    # Remove all special characters from study area name
+    study_area_ascii = study_area.lower().replace('å', 'a').replace('ä', 'a').replace('ö', 'o')
+
+    full_df.to_csv(f'/tmp/paper_water_estimates_{study_area_ascii}.csv')
     # plt.scatter(['2017-04-16', '2020-08-04', '2018-04-24', '2021-11-21'], [115044, 62330, 134579, 86235], c='#ff0000', s=35)
     # plt.scatter(['2017-04-16', '2020-08-04', '2018-04-24', '2021-11-21'], [115044, 62330, 134579, 86235], c='#ff0000', s=80)
-    # plt.savefig('/tmp/flacksjon_water_estimates.pdf')
+    plt.savefig(f'/tmp/{study_area_ascii}_water_estimates.pdf')
     # seaborn.regplot(data=full_df, x='Date', y='Extension')
 
     plt.show()
+
+
+# Plot a scatter plot from three CSV of the water estimates. Each CSV contains a different study area.
+# The dotts of the scatter plot are colored according to the study area.
+def plot_scatter_three_areas():
+    study_areas = [
+        'Svårtadalen',
+        'Hjälstaviken',
+        'Hornborgasjön',
+        # 'Mossaträsk',
+    ]
+
+    df_all = pandas.DataFrame(columns=['Extension', 'Date', 'Study_area'])
+
+    for study_area in study_areas:
+        study_area_ascii = study_area.lower().replace('å', 'a').replace('ä', 'a').replace('ö', 'o')
+        file_name = f'/tmp/paper_water_estimates_{study_area_ascii}.csv'
+        df = pandas.read_csv(file_name, usecols=['Extension', 'Date'])
+        df['Study_area'] = study_area
+        df_all = pandas.concat([df_all, df])
+
+    # Change the data type of the Date column to datetime
+    df_all['Date'] = pandas.to_datetime(df_all['Date'])
+
+    print(df_all.head())
+    print(df_all.dtypes)
+
+    # ax = seaborn.scatterplot(data=df_all, x='Date', y='Extension', hue='Study_area', palette='deep')
+    ax = seaborn.scatterplot(data=df_all, x='Date', y='Extension', hue='Study_area', palette='deep', s=20)
+    # ax = seaborn.scatterplot(data=df_all, x='Date', y='Extension', hue='Study_area', palette='deep', s=10)
+
+    # Set plot title
+    ax.set_title("Water extension in time")
+    ax.set_ylabel("Water extension in m2")
+
+    # Set the y axis to log scale
+    # ax.set_yscale('log')
+    # plt.yscale('log')
+
+    # Set legend title
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles, labels=labels, title='Study area')
+    # Move the legend to the bottom
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.3), ncol=3)
+
+    plt.tight_layout()
+    plt.savefig(f'/tmp/water_estimates_per_area.pdf')
+    plt.show()
+
+
+
 
 
 def count_ndwi_water():
@@ -172,8 +226,24 @@ def count_ndwi_water():
 
 def main():
     load_dotenv()
-    plot_scatter()
-    count_ndwi_water()
+
+    study_areas = [
+        'Svårtadalen',
+        'Hjälstaviken',
+        'Hornborgasjön',
+        'Mossaträsk',
+    ]
+    for study_area in study_areas:
+        print('before', study_area)
+        # Convert special characters to ASCII equivalents
+        study_area_ascii = study_area.lower().replace('å', 'a').replace('ä', 'a').replace('ö', 'o')
+        print('after', study_area_ascii)
+        results_2018_file = f'/tmp/scatter_plot/prime-2018_{study_area_ascii}_new_water_estimates_filtered.csv'
+        results_2020_file = f'/tmp/scatter_plot/solar-jazz-436_{study_area_ascii}_new_water_estimates_filtered.csv'
+        plot_scatter(results_2018_file, results_2020_file, study_area)
+    # count_ndwi_water()
+
+    # plot_scatter_three_areas()
 
 
 start = time.time()
