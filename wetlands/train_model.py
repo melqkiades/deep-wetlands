@@ -213,7 +213,7 @@ def full_cycle():
     masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
     tiles_data_file = os.getenv('TILES_FILE')
 
-    tiff_file = 'S1B_IW_GRDH_1SDV_20211115T052235_20211115T052300_029594_038826_6CF2.tif'
+    tiff_file = os.getenv('SINGLE_TEST_FILE')
     tiff_path = os.path.join(tiff_dir, tiff_file)
     tiff_image = viz_utils.load_image(tiff_path, band, ignore_nan=True)
 
