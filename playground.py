@@ -7,6 +7,7 @@ import pandas
 import rasterio
 import seaborn
 import torch
+import tqdm
 from PIL import Image
 import rasterio as rio
 from dotenv import load_dotenv, dotenv_values
@@ -563,24 +564,69 @@ def open_tiff():
     # tiff_file = os.path.join(annotations_dir, 'Svartadalen_annotated_vh_2014-10-05.tif')
     # tiff_file = os.path.join(annotations_dir, 'Hjalstaviken_annotated_vh_2014-10-12.tif')
     # tiff_file = os.path.join(annotations_dir, 'Hornborgasjon_annotated_vh_2015-06-02.tif')
-    tiff_file = os.path.join(annotations_dir, 'Mossatrask_annotated_vh_2014-10-12.tif')
+    # tiff_file = os.path.join(annotations_dir, 'Mossatrask_annotated_vh_2014-10-12.tif')
+    # tiff_image = rio.open(tiff_file)
+    # print(tiff_image.descriptions)
+    #
+    # tiff_file = os.path.join(annotations_dir, 'Hjalstaviken_annotated_vh_2014-10-12.tif')
+    # tiff_image = rio.open(tiff_file)
+    # print(tiff_image.descriptions)
+    #
+    # tiff_file = os.path.join(annotations_dir, 'Hornborgasjon_annotated_vh_2015-06-02.tif')
+    # tiff_image = rio.open(tiff_file)
+    # print(tiff_image.descriptions)
+    #
+    # tiff_file = os.path.join(annotations_dir, 'Mossatrask_annotated_vh_2014-10-12.tif')
+    # tiff_image = rio.open(tiff_file)
+    # print(tiff_image.descriptions)
+
+    # tiff_file = '/tmp/bulk_export_svartadalen_dynamic_world/20180704T103021_20180704T103023_T33VWG.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_ndwi_mask.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_awei_mask.tif'
+    # tiff_file = '/tmp/water_masked_image.tif'
+    # tiff_file = '/tmp/binary_water_image.tif'
+    # tiff_file = '/tmp/binary_water_image_gte.tif'
+    # tiff_file = '/tmp/binary_mndwi_water_image.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_ndwi_mask.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_binary_ndwi_mask.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_binary_mndwi_mask.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_binary_awei_mask.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_binary_hrwi_mask.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_hrwi_mask_no_scale.tif'
+    tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_awei_mask_no_scale.tif'
     tiff_image = rio.open(tiff_file)
     print(tiff_image.descriptions)
+    # band = 'binary_NDWI'
+    # band = 'binary_MNDWI'
+    # band = 'NDWI'
+    band = 'awei'
+    image_array = tiff_image.read(tiff_image.descriptions.index(band) + 1)
+    viz_utils.convert_ndwi_tiff_to_png(tiff_file, tiff_file.replace('.tif', '.png'), band)
+    # Print descriptive statistics for image_array
+    print('Min:', numpy.nanmin(image_array))
+    print('Max:', numpy.nanmax(image_array))
+    print('Mean:', numpy.nanmean(image_array))
+    print('Median:', numpy.nanmedian(image_array))
+    print('Std:', numpy.nanstd(image_array))
+    print('Variance:', numpy.nanvar(image_array))
+    print('Percentile 1:', numpy.nanpercentile(image_array, 1))
+    print('Percentile 5:', numpy.nanpercentile(image_array, 5))
+    print('Percentile 10:', numpy.nanpercentile(image_array, 10))
+    print('Percentile 25:', numpy.nanpercentile(image_array, 25))
+    print('Percentile 50:', numpy.nanpercentile(image_array, 50))
+    print('Percentile 75:', numpy.nanpercentile(image_array, 75))
+    print('Percentile 90:', numpy.nanpercentile(image_array, 90))
+    print('Percentile 95:', numpy.nanpercentile(image_array, 95))
+    print('Percentile 99:', numpy.nanpercentile(image_array, 99))
+    # Show the distinct values in the image_array and their counts
+    unique, counts = numpy.unique(image_array, return_counts=True)
+    count_dict = dict(zip(unique, counts))
+    print(count_dict)
 
-    tiff_file = os.path.join(annotations_dir, 'Hjalstaviken_annotated_vh_2014-10-12.tif')
-    tiff_image = rio.open(tiff_file)
-    print(tiff_image.descriptions)
-
-    tiff_file = os.path.join(annotations_dir, 'Hornborgasjon_annotated_vh_2015-06-02.tif')
-    tiff_image = rio.open(tiff_file)
-    print(tiff_image.descriptions)
-
-    tiff_file = os.path.join(annotations_dir, 'Mossatrask_annotated_vh_2014-10-12.tif')
-    tiff_image = rio.open(tiff_file)
     print(tiff_image.descriptions)
 
     band = 'vis-gray'
-    viz_utils.transform_ndwi_tiff_to_grayscale_png(annotations_dir, band)
+    # viz_utils.transform_ndwi_tiff_to_grayscale_png(annotations_dir, band)
 
 
 def set_env_vars():
@@ -623,6 +669,30 @@ def crop_images():
             crop_image(image_path)
 
 
+# merge two CSV files
+def convert_sar_files_to_png():
+    band = os.getenv('SAR_POLARIZATION')
+    tiff_dir = os.getenv('BULK_EXPORT_DIR')
+    study_area = os.getenv('STUDY_AREA')
+
+    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+
+    for tiff_file in tqdm.tqdm(sorted(filenames)):
+        if not tiff_file.endswith('.tif'):
+            continue
+        # print(tiff_file)
+        # if tiff_file == 'S1A_IW_GRDH_1SDV_20170529T051435_20170529T051500_016792_01BE84_0F12.tif':
+            # print('Hola')
+        image = viz_utils.load_image(tiff_dir + '/' + tiff_file, band, ignore_nan=True)
+        if image is None:
+            continue
+        file_name = os.path.basename(tiff_file)
+        image_date = file_name[17:25]
+        images_dir = f'/tmp/sar_images/{study_area}/'
+        plt.imsave(images_dir + image_date + '_' + file_name + '_sar_bw.png', image, cmap='gray')
+
+
+
 def main():
     load_dotenv()
 
@@ -651,9 +721,10 @@ def main():
     # calculate_iou()
     # rename_annotated_files()
     # count_files()
-    # open_tiff()
+    open_tiff()
     # set_env_vars()
-    crop_images()
+    # crop_images()
+    # convert_sar_files_to_png()
 
 
 start = time.time()
