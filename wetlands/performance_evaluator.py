@@ -90,6 +90,12 @@ def iterate(model_name):
 
         # Locate the prediction file
         prediction_file = model_performance_dir + date_str + f'_{study_area}_pred_bw.png'
+
+        # Check if the prediction file exists
+        if not os.path.isfile(prediction_file):
+            print(f'Prediction file {prediction_file} does not exist')
+            continue
+
         # Open the prediction file
         prediction_image = Image.open(prediction_file).convert('L')
 
@@ -119,7 +125,7 @@ def iterate(model_name):
     FP = confusion_matrix[0, 1]
     FN = confusion_matrix[1, 0]
 
-    print(TP, TN, FP, FN)
+    print(f'{TP}\t{TN}\t{FP}\t{FN}')
     print('True Positives:', TP)
     print('True Negatives:', TN)
     print('False Positives:', FP)
@@ -127,13 +133,13 @@ def iterate(model_name):
     precision = TP / (TP + FP)
     recall = TP / (TP + FN)
     f1_score = 2 * (precision * recall) / (precision + recall)
+    iou = TP / (TP + FP + FN)
+    accuracy = (TP + TN) / (TP + TN + FP + FN)
+    print('Pixel accuracy:', accuracy)
+    print('IOU:', iou)
     print('Precision:', precision)
     print('Recall:', recall)
     print('F1 Score:', f1_score)
-    iou = TP / (TP + FP + FN)
-    print('IOU:', iou)
-    accuracy = (TP + TN) / (TP + TN + FP + FN)
-    print('Pixel accuracy:', accuracy)
 
     metrics = {
         'accuracy': accuracy,
@@ -190,7 +196,6 @@ def full_cycle():
 
 def main():
     full_cycle()
-
 
 # start = time.time()
 # main()
