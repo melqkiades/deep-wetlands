@@ -115,24 +115,21 @@ def update_water_estimates(model_name):
     if model_name not in ['otsu', 'otsu_gaussian']:
         model_name = wandb_utils.get_run_name()
 
-    with open('/Users/frape/tmp/cropped_images/cropped_images.txt') as file:
-        lines = [line.rstrip() for line in file]
-        results_file = f'{results_dir}/{model_name}_{study_area}_water_estimates.csv'
-        data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date', 'File_name'],  parse_dates=["Date"])
-        print(data_frame.size)
-        print(data_frame.columns.values)
-        data_frame = data_frame[~data_frame['File_name'].isin(lines)]
-        data_frame.drop(['File_name'], axis=1, inplace=True)
-        data_frame = data_frame[data_frame['Date'].dt.month.isin([4, 5, 6, 7, 8, 9, 10, 11])]
-        # data_frame = data_frame[data_frame['Date'].dt.year.isin([2018, 2019, 2020, 2021, 2022])]
-        print(data_frame.size)
-        print(data_frame.columns.values)
+    results_file = f'{results_dir}/{model_name}_{study_area}_water_estimates.csv'
+    data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date', 'File_name'],  parse_dates=["Date"])
+    print(data_frame.size)
+    print(data_frame.columns.values)
+    data_frame.drop(['File_name'], axis=1, inplace=True)
+    data_frame = data_frame[data_frame['Date'].dt.month.isin([4, 5, 6, 7, 8, 9, 10, 11])]
+    # data_frame = data_frame[data_frame['Date'].dt.year.isin([2018, 2019, 2020, 2021, 2022])]
+    print(data_frame.size)
+    print(data_frame.columns.values)
 
-        data_frame.plot(x='Date', y='1.0', kind='scatter', title=f'{model_name} [{study_area}]')
-        plt.savefig(f'{charts_dir}/scatter_{model_name}_{study_area}_new_water_estimates_filtered.png')
-        plt.show()
+    data_frame.plot(x='Date', y='1.0', kind='scatter', title=f'{model_name} [{study_area}]')
+    plt.savefig(f'{charts_dir}/scatter_{model_name}_{study_area}_new_water_estimates_filtered.png')
+    plt.show()
 
-        data_frame.to_csv(f'{results_dir}/{model_name}_{study_area}_new_water_estimates_filtered.csv')
+    data_frame.to_csv(f'{results_dir}/{model_name}_{study_area}_new_water_estimates_filtered.csv')
 
 
 def full_cycle(model_name):
