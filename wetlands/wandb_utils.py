@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 def get_run_name():
     load_dotenv()
 
-    run_name = os.getenv("RUN_NAME") if wandb.run is None else wandb.run.name
+    run_name = os.getenv("MODEL_NAME") if wandb.run is None else wandb.run.name
 
     return run_name
 
