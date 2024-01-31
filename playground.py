@@ -593,13 +593,18 @@ def open_tiff():
     # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_binary_awei_mask.tif'
     # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_binary_hrwi_mask.tif'
     # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_hrwi_mask_no_scale.tif'
-    tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_awei_mask_no_scale.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_awei_mask_no_scale.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_dynamic_world_mask.tif'
+    # tiff_file = '/tmp/Lindesberg kommun_mosaic_2018-07-04_dynamic_world_mask_mosaic.tif'
+    # tiff_file = '/tmp/20180704T103021_20180704T103023_T33VWG.tif'
+    tiff_file = '/tmp/binary/bulk_export_svartadalen_sar/S1B_IW_GRDH_1SDV_20210904T052235_20210904T052300_028544_036806_2897.tif'
+    # tiff_file = '/tmp/Orebro lan_mosaic_2018-07-04_dynamic_world_mask.tif'
     tiff_image = rio.open(tiff_file)
     print(tiff_image.descriptions)
     # band = 'binary_NDWI'
     # band = 'binary_MNDWI'
     # band = 'NDWI'
-    band = 'awei'
+    band = 'dw'
     image_array = tiff_image.read(tiff_image.descriptions.index(band) + 1)
     viz_utils.convert_ndwi_tiff_to_png(tiff_file, tiff_file.replace('.tif', '.png'), band)
     # Print descriptive statistics for image_array
@@ -692,6 +697,254 @@ def convert_sar_files_to_png():
         plt.imsave(images_dir + image_date + '_' + file_name + '_sar_bw.png', image, cmap='gray')
 
 
+def tiff_to_png():
+
+    # tiff_file = '/tmp/bulk_export_ojesjon_sar/S1A_IW_GRDH_1SDV_20180704T052317_20180704T052342_022640_0273F3_FD0A.tif'
+    # band = 'VH'
+
+    tiff_file = '/tmp/bulk_export_ojesjon_ndwi_binary/20180704T103021_20180704T103023_T33VWG.tif'
+    band = 'NDWI-collection'
+
+    image = viz_utils.load_image(tiff_file, band, ignore_nan=True)
+    if image is None:
+        return
+    plt.imsave(tiff_file + '_sar_bw.png', image, cmap='gray')
+
+
+def visualize_segmentation_performance(ground_truth_path, prediction_path, output_path):
+
+    # Load the images
+    gt_img = Image.open(ground_truth_path)
+    pred_img = Image.open(prediction_path)
+
+    # Crop the prediction image to match the ground truth image
+    pred_img = pred_img.crop((0, 0, gt_img.width, gt_img.height))
+
+    # Convert images to numpy arrays
+    gt_array = numpy.array(gt_img)
+    pred_array = numpy.array(pred_img)
+
+    # Initialize an empty array for the output
+    output_array = numpy.zeros((gt_array.shape[0], gt_array.shape[1], 3), dtype=numpy.uint8)
+
+    # Set the color codes
+    GREEN = [0, 255, 0]  # True Positive
+    BLUE = [0, 0, 255]   # False Positive
+    RED = [255, 0, 0]   # False Positive
+    YELLOW = [255, 255, 0] # False Negative
+    BLACK = [0, 0, 0]    # True Negative
+    OLIVE_GREEN = [128, 128, 0] # True Negative
+    KHAKEE = [240, 230, 140] # True Negative
+    WHITE = [255, 255, 255] # True Negative
+    DARK_GREEN = [0, 100, 0] # True Negative
+    CREAM = [255, 253, 208] # True Negative
+    PURPLE = [128, 0, 128] # True Negative
+    VIOLET = [238, 130, 238] # True Negative
+    BROWN = [165, 42, 42] # True Negative
+    CYAN = [0, 255, 255] # True Negative
+    MAGENTA = [255, 0, 255] # True Negative
+
+    # Conditions
+    TP = numpy.logical_and(gt_array == 255, pred_array == 255)
+    FP = numpy.logical_and(gt_array == 0, pred_array == 255)
+    FN = numpy.logical_and(gt_array == 255, pred_array == 0)
+    TN = numpy.logical_and(gt_array == 0, pred_array == 0)
+
+    # Assigning colors based on conditions
+    output_array[TP] = GREEN
+    output_array[FP] = CYAN
+    output_array[FN] = RED
+    output_array[TN] = BLACK
+
+    # Save the output image
+    output_img = Image.fromarray(output_array)
+    # show the output image
+    # output_img.show()
+    output_img.save(output_path)
+
+    # output_array[TP] = DARK_GREEN
+    # output_array[FP] = BLUE
+    # output_array[FN] = RED
+    # output_array[TN] = CREAM
+    #
+    # # Save the output image
+    # output_img = Image.fromarray(output_array)
+    # output_img.show()
+    # # output_img.save(output_path.replace('.png', '_cream.png'))
+    #
+    # output_array[TP] = BLUE
+    # output_array[FP] = DARK_GREEN
+    # output_array[FN] = RED
+    # output_array[TN] = CREAM
+    #
+    # # Save the output image
+    # output_img = Image.fromarray(output_array)
+    # output_img.show()
+    # # output_img.save(output_path.replace('.png', '_cream.png'))
+
+
+def visualize_segmentation_performance_all():
+
+    site_list = [
+        # {
+        #     'study_area': 'svartadalen',
+        #     'date': '20180704',
+        #     'model': 'prime-2018',
+        # },
+        # {
+        #     'study_area': 'svartadalen',
+        #     'date': '20180704',
+        #     'model': 'otsu',
+        # },
+        # {
+        #     'study_area': 'svartadalen',
+        #     'date': '20180704',
+        #     'model': 'otsu_gaussian',
+        # },
+        # {
+        #     'study_area': 'svartadalen',
+        #     'date': '20180704',
+        #     'model': 'thresholding_2018',
+        # },
+        # {
+        #     'study_area': 'hjalstaviken',
+        #     'date': '20201004',
+        #     'model': 'clear-planet-465',
+        # },
+        # {
+        #     'study_area': 'hjalstaviken',
+        #     'date': '20201004',
+        #     'model': 'otsu',
+        # },
+        # {
+        #     'study_area': 'hjalstaviken',
+        #     'date': '20201004',
+        #     'model': 'otsu_gaussian',
+        # },
+        # {
+        #     'study_area': 'hjalstaviken',
+        #     'date': '20201004',
+        #     'model': 'thresholding_2020',
+        # },
+        # {
+        #     'study_area': 'hornborgasjon',
+        #     'date': '20210419',
+        #     'model': 'clear-planet-465',
+        # },
+        # {
+        #     'study_area': 'hornborgasjon',
+        #     'date': '20210419',
+        #     'model': 'otsu',
+        # },
+        # {
+        #     'study_area': 'hornborgasjon',
+        #     'date': '20210419',
+        #     'model': 'otsu_gaussian',
+        # },
+        {
+            'study_area': 'hornborgasjon',
+            'date': '20210419',
+            'model': 'thresholding_2020',
+        },
+    ]
+
+    for site in site_list:
+        study_area = site['study_area']
+        date = site['date']
+        model = site['model']
+        formatted_date = date[0:4] + '-' + date[4:6] + '-' + date[6:8]
+
+        ground_truth_path = f'/tmp/segmentation/{study_area}_annotated_vh_{formatted_date}.png'
+        prediction_path = f'/tmp/segmentation/{study_area}_{model}_{date}_pred_bw.png'
+        output_path = f'/tmp/segmentation/{study_area}_{model}_{date}_evaluation.png'
+
+        visualize_segmentation_performance(ground_truth_path, prediction_path, output_path)
+
+
+def compare_geotiffs(path1, path2):
+    # Open the datasets
+    ds1 = gdal.Open(path1)
+    ds2 = gdal.Open(path2)
+
+    # Compare metadata
+    if ds1.RasterXSize != ds2.RasterXSize or ds1.RasterYSize != ds2.RasterYSize:
+        return False
+    if ds1.GetProjection() != ds2.GetProjection():
+        return False
+    if ds1.GetGeoTransform() != ds2.GetGeoTransform():
+        return False
+
+    # Compare each band
+    for band in range(1, ds1.RasterCount + 1):
+        band1 = ds1.GetRasterBand(band)
+        band2 = ds2.GetRasterBand(band)
+
+        # Check data type and no-data value
+        if band1.DataType != band2.DataType:
+            return False
+        if band1.GetNoDataValue() != band2.GetNoDataValue():
+            return False
+
+        # Read raster data
+        data1 = band1.ReadAsArray()
+        data2 = band2.ReadAsArray()
+
+        # Check if the arrays are equal, allowing for a small margin of error
+        if not numpy.isclose(data1, data2, atol=1e-6).all():
+            return False
+
+    # The files are the same
+    return True
+
+
+def analyze_geotiff(file_path):
+    # Open the file
+    dataset = gdal.Open(file_path, gdal.GA_ReadOnly)
+
+    # Get geotransformation and projection information
+    geotransform = dataset.GetGeoTransform()
+    projection = dataset.GetProjection()
+    bands_count = dataset.RasterCount
+
+    # Initialize a dictionary to store band statistics
+    bands_data = []
+
+    # Loop through each band
+    for i in range(1, bands_count + 1):
+        band = dataset.GetRasterBand(i)
+        stats = band.GetStatistics(True, True)
+
+        # Collect statistics for each band
+        band_data = {
+            'min': stats[0],
+            'max': stats[1],
+            'mean': stats[2],
+            'stddev': stats[3],
+            'no_data_value': band.GetNoDataValue(),
+            'data_type': gdal.GetDataTypeName(band.DataType)
+        }
+        bands_data.append(band_data)
+
+    # Close the dataset
+    dataset = None
+
+    return {
+        'geotransform': geotransform,
+        'projection': projection,
+        'bands_count': bands_count,
+        'bands_data': bands_data
+    }
+
+
+# Compare the information
+def compare_dicts(dict1, dict2):
+    for key in dict1:
+        if dict1[key] != dict2[key]:
+            print(f"Difference in {key}:")
+            print(f"File 1: {dict1[key]}")
+            print(f"File 2: {dict2[key]}")
+            print()
+
 
 def main():
     load_dotenv()
@@ -721,10 +974,35 @@ def main():
     # calculate_iou()
     # rename_annotated_files()
     # count_files()
-    open_tiff()
+    # open_tiff()
     # set_env_vars()
     # crop_images()
     # convert_sar_files_to_png()
+    # tiff_to_png()
+    # visualize_segmentation_performance_all()
+
+    file1 = '/tmp/test_geo_exports 2/Lindesberg kommun_mosaic_2020-06-23_awei_mask_binary.tif'
+    file2 = '/tmp/test_geo_exports 2/Lindesberg kommun_mosaic_2020-06-23_awei_binary_expression_3.tif'
+
+    # Paths to the GeoTIFF files
+    # file1_path = 'path_to_first_geotiff_file.tif'
+    # file2_path = 'path_to_second_geotiff_file.tif'
+
+    # Analyze the files
+    file1_info = analyze_geotiff(file1)
+    file2_info = analyze_geotiff(file2)
+    print(file1_info)
+    print(file2_info)
+
+    compare_dicts(file1_info, file2_info)
+
+
+    tiff_image = rio.open(file1)
+    print(tiff_image.descriptions)
+    tiff_image = rio.open(file2)
+    print(tiff_image.descriptions)
+    are_equal = compare_geotiffs(file1, file2)
+    print(f"The GeoTIFF files are {'the same' if are_equal else 'different'}.")
 
 
 start = time.time()
