@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 from model import model_factory
-from wetlands import utils, viz_utils, map_wetlands, wandb_utils
+from wetlands import utils, viz_utils, map_wetlands, wandb_utils, noise_filters
 
 
 def visualize_predicted_image(image, model, device, file_name, model_name):
@@ -27,6 +27,10 @@ def visualize_predicted_image(image, model, device, file_name, model_name):
         kernel_size = os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
         model_name += '_' + kernel_size
         pred_mask = otsu_gaussian_threshold(image, int(kernel_size))
+    elif model_name == 'thresholding_2018':
+        pred_mask = threshold_method(image, 0.6486486486486487)
+    elif model_name == 'thresholding_2020':
+        pred_mask = threshold_method(image, 0.36236236236236236)
     else:
         pred_mask = map_wetlands.predict_water_mask(image, model, device)
 
@@ -87,6 +91,19 @@ def otsu_gaussian_threshold(image, kernel_size=5):
     thresholded_image = 1 - ((thresholded_image - thresholded_image.min()) / (thresholded_image.max() - thresholded_image.min()))
 
     return thresholded_image
+
+
+def threshold_method(image, threshold):
+
+    # 2018: Optimal threshold: 0.6486486486486487 	Dice score: 0.8768594116989151 	Noise filter: gaussian
+    # 2020: Optimal threshold 0.36236236236236236 	Dice score: 0.9218205699274742 	Noise filter: gaussian
+    
+    # threshold = 0.6486486486486487  # 2018
+    # threshold = 0.36236236236236236  # 2020
+    denoised_image = noise_filters.get_noise_filters()['gaussian'](image)
+    water_prediction = (denoised_image < threshold).astype(float)
+    
+    return water_prediction
 
 
 def plot_results(model_name):
@@ -150,7 +167,7 @@ def full_cycle(model_name):
     study_area = os.getenv('STUDY_AREA')
     cnn_type = os.getenv('CNN_TYPE')
     sar_polarization = os.getenv('SAR_POLARIZATION')
-    if model_name not in ['otsu', 'otsu_gaussian']:
+    if model_name not in ['otsu', 'otsu_gaussian', 'thresholding_2018', 'thresholding_2020']:
         model_path = wandb_utils.get_model_path()
         model_name = wandb_utils.get_run_name()
         # model_path = f'/tmp/{model_name}_best_model.pth'
