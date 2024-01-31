@@ -3,6 +3,7 @@ import os
 import time
 
 import imageio
+import matplotlib
 import numpy
 import pandas
 import seaborn
@@ -90,6 +91,9 @@ def plot_scatter_three_areas():
     # Change the data type of the Date column to datetime
     df_all['Date'] = pandas.to_datetime(df_all['Date'])
 
+    # Multiply the water extension by 55 to get the extension in m2
+    df_all['Extension'] = df_all['Extension'] * 55 / 1000000
+
     print(df_all.head())
     print(df_all.dtypes)
 
@@ -99,7 +103,11 @@ def plot_scatter_three_areas():
 
     # Set plot title
     ax.set_title("Water extension in time")
-    ax.set_ylabel("Water extension in m2")
+    ax.set_ylabel("Water extension in km$^2$")
+
+    # Format Y axis to separate thousands with a space
+    ax.get_yaxis().set_major_formatter(
+        matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 
     # Set the y axis to log scale
     # ax.set_yscale('log')
