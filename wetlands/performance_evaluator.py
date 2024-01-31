@@ -181,12 +181,55 @@ def iterate(model_name):
     plt.show()
 
 
+def setup_dynamic_world_data():
+
+    # Locate the dynamic world data and transform it to grayscale PNG
+    study_area = os.getenv('STUDY_AREA')
+    # dynamic_world_data_dir = f'/tmp/bulk_export_{study_area}_dynamic_world_water_mask_2018'
+    dynamic_world_data_dir = f'/tmp/bulk_export_{study_area}_ndwi_binary'
+    # band = 'dw'
+    band = 'NDWI-collection'
+    viz_utils.transform_ndwi_tiff_to_grayscale_png(dynamic_world_data_dir, band)
+
+    # Create a directory of the same name as the model and copy the dynamic world data to it
+    model_name = os.getenv('MODEL_NAME')
+
+    results_dir = os.getenv('RESULTS_DIR')
+    if not os.path.isdir(results_dir):
+        os.mkdir(results_dir)
+
+    images_dir = f'{results_dir}/{model_name}_{study_area}_exported_images/'
+
+    if not os.path.isdir(images_dir):
+        os.mkdir(images_dir)
+
+    # Copy the dynamic world data to the images directory
+    [shutil.copyfile(dynamic_world_data_dir + '/' + f, images_dir + f) for f in os.listdir(dynamic_world_data_dir) if f.endswith('.png')]
+
+    performance_dir = os.getenv('EVALUATION_DIR')
+    if not os.path.isdir(performance_dir):
+        os.mkdir(performance_dir)
+    # Create subfolder to calculate the performance of the current model
+    model_performance_dir = f'{performance_dir}/{model_name}_{study_area}_performance/'
+    if not os.path.isdir(model_performance_dir):
+        os.mkdir(model_performance_dir)
+
+    # Copy the dynamic world data to the model performance directory
+    # [shutil.copyfile(dynamic_world_data_dir + '/' + f, model_performance_dir + f) for f in os.listdir(dynamic_world_data_dir) if f.endswith('.png')]
+    # [shutil.copyfile(predictions_dir + f, model_performance_dir + f[:8] + f'_{study_area}_pred_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
+    # # Rename the dynamic world data files
+
+
+
+
 def full_cycle():
     load_dotenv()
 
     model_name = os.getenv('MODEL_NAME')
     if model_name == 'otsu_gaussian':
         model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
+
+    # setup_dynamic_world_data()
 
     convert_annotated_data_to_png()
     rename_prediction_images(model_name)
