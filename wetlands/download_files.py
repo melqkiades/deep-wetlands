@@ -11,6 +11,11 @@ from unidecode import unidecode
 from wetlands import utils
 
 
+SENTINEL_1_PRODUCT = 'COPERNICUS/S1_GRD'
+SENTINEL_2_PRODUCT = 'COPERNICUS/S2'
+DYNAMIC_WORLD_PRODUCT = 'GOOGLE/DYNAMICWORLD/V1'
+
+
 def get_area_of_interest(area_name):
 
     areas_of_interest = {
@@ -80,15 +85,457 @@ def get_area_of_interest(area_name):
               [18.18441472424892, 59.55704443997286],
               [18.13634570498334, 59.55691564499851],
               [18.136216336105946, 59.540488418602365]]]),
+        'chongon': ee.Geometry.Polygon((
+            [[[-80.16375218077457, -2.1699515390834487],
+              [-80.16375218077457, -2.2409667014081216],
+              [-80.09302769346988, -2.2409667014081216],
+              [-80.09302769346988, -2.1699515390834487]]])),
+        'peripa': ee.Geometry.Polygon((
+            [[[-79.87124518058476, -0.6046964292981359],
+              [-79.87124518058476, -0.9438678422606649],
+              [-79.49633673331914, -0.9438678422606649],
+              [-79.49633673331914, -0.6046964292981359]]])),
     }
 
     return areas_of_interest[area_name]
 
 
-def download_ndwi_mask(region):
+def get_expression(technique_name):
+
+    expression_map = {
+        'ndwi_range': {
+            'expression': '(b("B3") - b("B8")) / (b("B3") + b("B8"))',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'ndwi_binary': {
+            'expression': '(b("B3") - b("B8")) / (b("B3") + b("B8")) > 0',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'mndwi_range': {
+            'expression': '(b("B3") - b("B11")) / (b("B3") + b("B11"))',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'mndwi_binary': {
+            'expression': '(b("B3") - b("B11")) / (b("B3") + b("B11")) > 0',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'awei_range': {
+            'expression': '4*(b("B3")*0.0001 - b("B11")*0.0001) - (0.25*b("B8")*0.0001 + 2.75*b("B12")*0.0001)',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'awei_binary': {
+            'expression': '(4*(b("B3")*0.0001 - b("B11")*0.0001) - (0.25*b("B8")*0.0001 + 2.75*b("B12")*0.0001)) > 0',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'hrwi_range': {
+            'expression': '6*b("B3")*0.0001 - b("B4")*0.0001 - 6.5*b("B8")*0.0001 + 0.2',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'hrwi_binary': {
+            'expression': '(6*b("B3")*0.0001 - b("B4")*0.0001 - 6.5*b("B8")*0.0001 + 0.2) > 0',
+            'product': SENTINEL_2_PRODUCT
+        },
+        'dynamic_world_water_binary': {
+            'expression': '(b("label") == 0) || (b("label") == 3) ? 1 : 0',
+            'product': DYNAMIC_WORLD_PRODUCT
+        },
+    }
+
+    return expression_map[technique_name]
+
+
+def download_image(technique_name, region, filter_clouds=False):
+    shape_name = os.getenv("REGION_NAME")
+    # folder = 'generic_geo_exports'
+    folder = 'test_geo_exports'
+
+    expression = get_expression(technique_name)['expression']
+    product = get_expression(technique_name)['product']
+
+    image_collection = get_image_collection(product, region)
+
+    if filter_clouds:
+        cloud_pct = int(os.getenv("CLOUDY_PIXEL_PERCENTAGE"))
+        image_collection = image_collection.filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+    image = image.expression(expression).rename(technique_name)
+
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_{technique_name}'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_{technique_name}_expression_3'
+    task = export_image(image, file_name, region, folder)
+
+
+def download_ndwi_mask_binary(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = int(os.getenv("CLOUDY_PIXEL_PERCENTAGE"))
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+    image = aggregate_and_clip(image_collection, region)
+    # ndwi_binary = image.normalizedDifference(['B3', 'B8']).gt(0).rename('binary_NDWI')
+    ndwi_binary = image.normalizedDifference(['B3', 'B8']).gt(0).rename('ndwi_binary')
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_mask_binary'
+    task = export_image(ndwi_binary, file_name, region, folder)
+
+
+def download_mndwi_mask_binary(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = int(os.getenv("CLOUDY_PIXEL_PERCENTAGE"))
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+    image = aggregate_and_clip(image_collection, region)
+    # ndwi_binary = image.normalizedDifference(['B3', 'B11']).gt(0).rename('binary_MNDWI')
+    ndwi_binary = image.normalizedDifference(['B3', 'B11']).gt(0).rename('mndwi_binary')
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_mndwi_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_mndwi_mask_binary'
+    task = export_image(ndwi_binary, file_name, region, folder)
+
+
+def download_awei_mask_binary(region):
     product = 'COPERNICUS/S2'
     shape_name = os.getenv("REGION_NAME")
     cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    # // Calculate Automated Water Extraction Index (AWEI)
+    # // AWEI is a Multi-band Index that uses the following bands
+    # // 'BLUE' (B2), GREEN' (B3), 'NIR' (B8), 'SWIR1' (B11) and 'SWIR2' (B12)
+
+    # // Formula for AWEI is as follows
+    # // AWEI = 4 * (GREEN - SWIR2) - (0.25 * NIR + 2.75 * SWIR1)
+
+    # // For more complex indices, you can use the expression() function
+
+    # // Note:
+    # // For the AWEI formula, the pixel values need to converted to reflectances
+    # // Multiplyng the pixel values by 'scale' gives us the reflectance value
+    # // The scale value is 0.0001 for Sentinel-2 dataset. This is because the
+    # // the range of pixel values for Sentinel-2 dataset is 0 to 10000
+
+    awei = image.expression(
+        '4*(GREEN - SWIR1) - (0.25*NIR + 2.75*SWIR2)', {
+          'GREEN': image.select('B3').multiply(0.0001),
+          'NIR': image.select('B8').multiply(0.0001),
+          'SWIR1': image.select('B11').multiply(0.0001),
+          'SWIR2': image.select('B12').multiply(0.0001),
+    # }).rename('awei')
+    }).rename('awei_binary')
+
+    # Create MNDWI mask
+    awei_binary = awei.gt(0.0)
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask_binary'
+    task = export_image(awei_binary, file_name, region, folder)
+
+
+def download_awei_mask_binary_multiply(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    # // Calculate Automated Water Extraction Index (AWEI)
+    # // AWEI is a Multi-band Index that uses the following bands
+    # // 'BLUE' (B2), GREEN' (B3), 'NIR' (B8), 'SWIR1' (B11) and 'SWIR2' (B12)
+
+    # // Formula for AWEI is as follows
+    # // AWEI = 4 * (GREEN - SWIR2) - (0.25 * NIR + 2.75 * SWIR1)
+
+    # // For more complex indices, you can use the expression() function
+
+    # // Note:
+    # // For the AWEI formula, the pixel values need to converted to reflectances
+    # // Multiplyng the pixel values by 'scale' gives us the reflectance value
+    # // The scale value is 0.0001 for Sentinel-2 dataset. This is because the
+    # // the range of pixel values for Sentinel-2 dataset is 0 to 10000
+
+    awei = image.expression(
+        '4*(GREEN*0.0001 - SWIR1*0.0001) - (0.25*NIR*0.0001 + 2.75*SWIR2*0.0001)', {
+          'GREEN': image.select('B3'),
+          'NIR': image.select('B8'),
+          'SWIR1': image.select('B11'),
+          'SWIR2': image.select('B12'),
+    # }).rename('awei')
+    }).rename('awei_binary')
+
+    # Create MNDWI mask
+    awei_binary = awei.gt(0.0)
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask_binary_multiply'
+    task = export_image(awei_binary, file_name, region, folder)
+
+
+def download_awei_mask_binary_multiply_greater_than(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    # // Calculate Automated Water Extraction Index (AWEI)
+    # // AWEI is a Multi-band Index that uses the following bands
+    # // 'BLUE' (B2), GREEN' (B3), 'NIR' (B8), 'SWIR1' (B11) and 'SWIR2' (B12)
+
+    # // Formula for AWEI is as follows
+    # // AWEI = 4 * (GREEN - SWIR2) - (0.25 * NIR + 2.75 * SWIR1)
+
+    # // For more complex indices, you can use the expression() function
+
+    # // Note:
+    # // For the AWEI formula, the pixel values need to converted to reflectances
+    # // Multiplyng the pixel values by 'scale' gives us the reflectance value
+    # // The scale value is 0.0001 for Sentinel-2 dataset. This is because the
+    # // the range of pixel values for Sentinel-2 dataset is 0 to 10000
+
+    awei_binary = image.expression(
+        '(4*(GREEN*0.0001 - SWIR1*0.0001) - (0.25*NIR*0.0001 + 2.75*SWIR2*0.0001)) > 0', {
+          'GREEN': image.select('B3'),
+          'NIR': image.select('B8'),
+          'SWIR1': image.select('B11'),
+          'SWIR2': image.select('B12'),
+    # }).rename('awei')
+    }).rename('awei_binary')
+
+    # Create MNDWI mask
+    # awei_binary = awei.gt(0.0)
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask_binary_multiply_greater_than'
+    task = export_image(awei_binary, file_name, region, folder)
+
+
+def download_awei_mask_binary_no_alias(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    # // Calculate Automated Water Extraction Index (AWEI)
+    # // AWEI is a Multi-band Index that uses the following bands
+    # // 'BLUE' (B2), GREEN' (B3), 'NIR' (B8), 'SWIR1' (B11) and 'SWIR2' (B12)
+
+    # // Formula for AWEI is as follows
+    # // AWEI = 4 * (GREEN - SWIR2) - (0.25 * NIR + 2.75 * SWIR1)
+
+    # // For more complex indices, you can use the expression() function
+
+    # // Note:
+    # // For the AWEI formula, the pixel values need to converted to reflectances
+    # // Multiplyng the pixel values by 'scale' gives us the reflectance value
+    # // The scale value is 0.0001 for Sentinel-2 dataset. This is because the
+    # // the range of pixel values for Sentinel-2 dataset is 0 to 10000
+
+    awei = image.expression(
+        '4*(b("B3")*0.0001 - b("B11"))*0.0001 - (0.25*b("B8")*0.0001 + 2.75*b("B12")*0.0001)').rename('awei_binary')
+
+    # Create MNDWI mask
+    awei_binary = awei.gt(0.0)
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask_binary_no_alias'
+    task = export_image(awei_binary, file_name, region, folder)
+
+
+def download_awei_mask_binary_greater_than(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    # // Calculate Automated Water Extraction Index (AWEI)
+    # // AWEI is a Multi-band Index that uses the following bands
+    # // 'BLUE' (B2), GREEN' (B3), 'NIR' (B8), 'SWIR1' (B11) and 'SWIR2' (B12)
+
+    # // Formula for AWEI is as follows
+    # // AWEI = 4 * (GREEN - SWIR2) - (0.25 * NIR + 2.75 * SWIR1)
+
+    # // For more complex indices, you can use the expression() function
+
+    # // Note:
+    # // For the AWEI formula, the pixel values need to converted to reflectances
+    # // Multiplyng the pixel values by 'scale' gives us the reflectance value
+    # // The scale value is 0.0001 for Sentinel-2 dataset. This is because the
+    # // the range of pixel values for Sentinel-2 dataset is 0 to 10000
+
+    awei = image.expression(
+        '(4*(b("B3")*0.0001 - b("B11"))*0.0001 - (0.25*b("B8")*0.0001 + 2.75*b("B12")*0.0001)) > 0').rename('awei_binary')
+
+    # Create MNDWI mask
+    awei_binary = awei.gt(0.0)
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_awei_mask_binary_greater_than'
+    task = export_image(awei_binary, file_name, region, folder)
+
+
+def download_hrwi_mask_binary(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 10
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    # // Calculate High Resolution Water Index (HRWI)
+    # // AWEI is a Multi-band Index that uses the following bands
+    # // GREEN' (B3), 'RED' (B4), 'NIR' (B8)
+
+    # // Formula for HRWI is as follows
+    # // HRWI = 6 * GREEN − RED − 6.5 * NIR + 0.2
+
+    # // For more complex indices, you can use the expression() function
+
+    # // Note:
+    # // For the HRWI formula, the pixel values need to converted to reflectances
+    # // Multiplyng the pixel values by 'scale' gives us the reflectance value
+    # // The scale value is 0.0001 for Sentinel-2 dataset. This is because the
+    # // the range of pixel values for Sentinel-2 dataset is 0 to 10000
+
+    hrwi = image.expression(
+        '6*GREEN - RED - 6.5*NIR + 0.2', {
+          'GREEN': image.select('B3').multiply(0.0001),
+          'NIR': image.select('B8').multiply(0.0001),
+          'RED': image.select('B4').multiply(0.0001),
+    # }).rename('hrwi')
+    }).rename('hrwi_binary')
+
+    # Create HRWI mask
+    hrwi_binary = hrwi.gt(0.0)
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_hrwi_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_hrwi_mask_binary'
+    task = export_image(hrwi_binary, file_name, region, folder)
+
+
+def download_dynamic_world_water_mask_binary(region):
+    sentinel2_product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = int(os.getenv("CLOUDY_PIXEL_PERCENTAGE"))
+
+    sentinel_image_collection = get_image_collection(sentinel2_product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+    sentinel_image_id = sentinel_image_collection.first().get('system:index').getInfo()
+
+    dynamic_world_collection = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1') \
+             .filter(ee.Filter.eq('system:index', sentinel_image_id))
+    dynamic_world_image = ee.Image(dynamic_world_collection.first())
+
+    print(dynamic_world_image.getInfo())
+    band_names = dynamic_world_image.bandNames()
+    print('Band names', band_names.getInfo())
+
+    # classification = dynamic_world_image.select('label')
+    dw_binary_mask = dynamic_world_image.expression(
+        "(b == 0) || (b == 3) ? 1 : 0", {
+            'b': dynamic_world_image.select('label'),
+        }
+        # 0 and 3 are codes for water and flooded vegetation respectively.
+    ).rename('dw')
+
+    folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_dynamic_world_mask'
+    task = export_image(dw_binary_mask, file_name, region, folder)
+
+
+def download_dynamic_world_water_mask_binary_mosaic(region):
+    product = 'GOOGLE/DYNAMICWORLD/V1'
+    shape_name = os.getenv("REGION_NAME")
+
+    image_collection = get_image_collection(product, region)
+    dynamic_world_image = aggregate_and_clip(image_collection, region)
+
+    print(dynamic_world_image.getInfo())
+    band_names = dynamic_world_image.bandNames()
+    print('Band names', band_names.getInfo())
+
+    # classification = dynamic_world_image.select('label')
+    dw_binary_mask = dynamic_world_image.expression(
+        "(b == 0) || (b == 3) ? 1 : 0", {
+            'b': dynamic_world_image.select('label'),
+        }
+        # 0 and 3 are codes for water and flooded vegetation respectively.
+    # ).rename('dw')
+    ).rename('dynamic_world_water_binary')
+
+    # folder = 'binary_geo_exports'  # Change this to your file destination folder in Google drive
+    folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    # file_name = f'{shape_name}_{aggregate_function}_{start_date}_dynamic_world_mask_mosaic'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_dynamic_world_mask_mosaic_binary'
+    task = export_image(dw_binary_mask, file_name, region, folder)
+
+
+def download_ndwi_mask(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = int(os.getenv("CLOUDY_PIXEL_PERCENTAGE"))
 
     image_collection = get_image_collection(product, region) \
         .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
@@ -105,6 +552,7 @@ def download_ndwi_mask(region):
     new_image = new_image.add(semi_ndwi_image)
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
+    # folder = 'test_geo_exports'  # Change this to your file destination folder in Google drive
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
     file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_mask'
@@ -124,16 +572,17 @@ def download_mndwi_mask(region):
     mndwi = image.normalizedDifference(['B3', 'B11']).rename('MNDWI')
 
     # Create MNDWI mask
-    mndwi_threshold = mndwi.gte(0.0)
-    semi_mndwi_image = mndwi_threshold.neq(0.0)
-    semi_mndwi_mask = mndwi_threshold.eq(0.0)
-    new_image = semi_mndwi_mask.multiply(0.5).add(semi_mndwi_image.multiply(semi_mndwi_mask.neq(0.0)))
+    mndwi_threshold_value = 0.07
+    mndwi_threshold = mndwi.gte(mndwi_threshold_value)
+    semi_mndwi_image = mndwi_threshold.neq(mndwi_threshold_value)
+    semi_mndwi_mask = mndwi_threshold.eq(mndwi_threshold_value)
+    new_image = semi_mndwi_mask.multiply(0.5).add(semi_mndwi_image.multiply(semi_mndwi_mask.neq(mndwi_threshold_value)))
     new_image = new_image.add(semi_mndwi_image)
 
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
-    file_name = f'{shape_name}_{aggregate_function}_{start_date}_mndwi_mask'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_mndwi_mask_{mndwi_threshold_value}'
     task = export_image(mndwi, file_name, region, folder)
 
 
@@ -371,8 +820,14 @@ def download_sar_vv_plus_vh(region):
 
 
 def bulk_export_sar(area_name):
-    start_date = '2014-01-01'
-    end_date = '2023-12-31'
+    # start_date = '2014-01-01'
+    # end_date = '2023-12-31'
+    # start_date = '2018-07-04'
+    # end_date = '2018-07-09'
+    # start_date = '2020-06-23'
+    # end_date = '2020-06-24'
+    start_date = '2022-06-23'
+    end_date = '2022-07-24'
     orbit_pass = os.getenv("ORBIT_PASS")
 
     roi = get_area_of_interest(area_name)
@@ -448,6 +903,53 @@ def bulk_export_ndwi(area_name):
     )
 
 
+def bulk_export_ndwi_binary(area_name):
+    # start_date = '2014-01-01'
+    # end_date = '2023-12-31'
+    # start_date = '2018-07-04'
+    # end_date = '2018-07-05'
+    # start_date = '2020-06-23'
+    # end_date = '2020-06-24'
+    start_date = os.getenv("STUDY_AREA_START_DATE")
+    end_date = os.getenv("STUDY_AREA_END_DATE")
+
+    roi = get_area_of_interest(area_name)
+    cloud_pct = int(os.getenv("CLOUDY_PIXEL_PERCENTAGE"))
+
+    def clip_image(image):
+        return image.clip(roi)
+
+    def create_ndwi_mask(image):
+        ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI-collection')
+        ndwi_threshold = ndwi.gte(0.0)
+
+        return ndwi_threshold
+        # return ee.Image(image).addBands(ndwi).addBands(new_image).copyProperties(image)
+
+    collection = ee.ImageCollection('COPERNICUS/S2')\
+        .filterDate(start_date, end_date)\
+        .filterBounds(roi)\
+        .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_pct))\
+        .map(lambda image: clip_image(image))\
+        .map(lambda image: create_ndwi_mask(image))
+
+    print('NDWI collection size:', collection.size().getInfo())
+
+    # batch export to Google Drive
+    geetools.batch.Export.imagecollection.toDrive(
+        collection,
+        f'bulk_export_{area_name}_ndwi_binary',
+        namePattern='{id}',
+        scale=10,
+        dataType="float",
+        region=roi,
+        crs='EPSG:4326',
+        datePattern=None,
+        extra=None,
+        verbose=False
+    )
+
+
 def bulk_export_rgb(area_name):
     start_date = '2014-01-01'
     end_date = '2023-12-31'
@@ -466,6 +968,88 @@ def bulk_export_rgb(area_name):
     geetools.batch.Export.imagecollection.toDrive(
         collection,
         f'bulk_export_{area_name}_rgb',
+        namePattern='{id}',
+        scale=10,
+        dataType="float",
+        region=roi,
+        crs='EPSG:4326',
+        datePattern=None,
+        extra=None,
+        verbose=False
+    )
+
+
+def bulk_export_dynamic_world(area_name):
+    start_date = '2014-01-01'
+    end_date = '2023-12-31'
+
+    roi = get_area_of_interest(area_name)
+
+    collection = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1')\
+        .filterDate(start_date, end_date)\
+        .filterBounds(roi)
+    collection = collection.select(['label'])
+
+    print('Dynamic world collection size:', collection.size().getInfo())
+
+    # batch export to Google Drive
+    geetools.batch.Export.imagecollection.toDrive(
+        collection,
+        f'bulk_export_{area_name}_dynamic_world_label',
+        namePattern='{id}',
+        scale=10,
+        dataType="float",
+        region=roi,
+        crs='EPSG:4326',
+        datePattern=None,
+        extra=None,
+        verbose=False
+    )
+
+
+def bulk_export_dynamic_world_water_mask(area_name):
+    start_date = '2018-01-01'
+    end_date = '2028-12-31'
+
+    roi = get_area_of_interest(area_name)
+
+    def clip_image(image):
+        return image.clip(roi)
+    def create_water_mask(image):
+        # ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI-collection')
+        # ndwi_threshold = ndwi.gte(0.0)
+        # semi_ndwi_image = ndwi_threshold.neq(0.0)
+        # semi_ndwi_mask = ndwi_threshold.eq(0.0)
+        # new_image = semi_ndwi_mask.multiply(0.5).add(semi_ndwi_image.multiply(semi_ndwi_mask.neq(0.0)))
+        # new_image = new_image.add(semi_ndwi_image).rename('NDWI-mask')
+
+        dw_binary_mask = image.expression(
+            "(b == 0) || (b == 3) ? 1 : 0", {
+                'b': image.select('label'),
+            }
+            # 0 and 3 are codes for water and flooded vegetation respectively.
+        ).rename('dw')
+
+        return dw_binary_mask
+        # return ee.Image(image).addBands(ndwi).addBands(new_image).copyProperties(image)
+
+    # collection = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1') \
+        # .filterDate(start_date, end_date) \
+        # .filterBounds(roi)
+    # collection = collection.select(['label'])
+    collection = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1')\
+        .filterDate(start_date, end_date)\
+        .filterBounds(roi) \
+        .select(['label']) \
+        .map(lambda image: clip_image(image))\
+        .map(lambda image: create_water_mask(image))
+
+    print('Dynamic world collection size:', collection.size().getInfo())
+
+    # batch export to Google Drive
+    geetools.batch.Export.imagecollection.toDrive(
+        collection,
+        f'bulk_export_{area_name}_dynamic_world_water_mask_2018',
         namePattern='{id}',
         scale=10,
         dataType="float",
@@ -541,18 +1125,38 @@ def main():
     file_name = os.getenv("GEOJSON_FILE")
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
     study_area = os.getenv("STUDY_AREA")
-    utils.download_country_boundaries(country_code, region_admin_level, file_name)
+    # utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
     # region = get_area_of_interest('small_sweden')
-    download_ndwi_mask(region)
+    # download_ndwi_mask(region)
+    # download_image('ndwi_binary', region)
+    # download_image('mndwi_binary', region)
+    download_image('awei_binary', region)
+    # download_image('hrwi_binary', region)
+    # download_image('dynamic_world_water_binary', region)
+
+    # download_ndwi_mask_binary(region)
+    # download_mndwi_mask_binary(region)
+    # download_awei_mask_binary(region)
+    # download_awei_mask_binary_multiply(region)
+    # download_awei_mask_binary_no_alias(region)
+    # download_awei_mask_binary_greater_than(region)
+    # download_awei_mask_binary_multiply_greater_than(region)
+    # download_hrwi_mask_binary(region)
+    # download_dynamic_world_water_mask_binary(region)
+    # download_dynamic_world_water_mask_binary_mosaic(region)
     # download_mndwi_mask(region)
     # download_awei_mask(region)
-    download_sar(region)
+    # download_sar(region)
     # download_ndwi_range(region)
     # download_sar_vv_plus_vh(region)
+
     # bulk_export_sar(study_area)
     # bulk_export_ndwi(study_area)
     # bulk_export_rgb(study_area)
+    # bulk_export_dynamic_world(study_area)
+    # bulk_export_dynamic_world_water_mask(study_area)
+    # bulk_export_ndwi_binary(study_area)
     # get_sentinel2_dates()
     # get_sentinel1_dates(get_flacksjon_geometry())
     # get_matching_dates(get_flacksjon_geometry())
