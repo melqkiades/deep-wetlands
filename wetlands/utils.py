@@ -27,7 +27,8 @@ def plant_random_seed(seed):
 def get_device():
     # Check is GPU is enabled
     device = torch.device(
-        "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+        # "cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+        "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print("Device: {}".format(device))
 
     # Get specific GPU model

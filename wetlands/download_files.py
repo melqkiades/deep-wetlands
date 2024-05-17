@@ -1,6 +1,6 @@
 import os
 import time
-
+from geetools import batch
 import geetools
 from dotenv import load_dotenv
 import geopandas as gpd
@@ -15,6 +15,30 @@ SENTINEL_1_PRODUCT = 'COPERNICUS/S1_GRD'
 SENTINEL_2_PRODUCT = 'COPERNICUS/S2'
 DYNAMIC_WORLD_PRODUCT = 'GOOGLE/DYNAMICWORLD/V1'
 
+def download_ndwi_mask(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 1
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+    image_collection = image_collection.sort()
+    image = aggregate_and_clip(image_collection, region)
+
+    ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
+
+    # Create NDWI mask
+    ndwi_threshold = ndwi.gte(0.0)
+    semi_ndwi_image = ndwi_threshold.neq(0.0)
+    semi_ndwi_mask = ndwi_threshold.eq(0.0)
+    new_image = semi_ndwi_mask.multiply(0.5).add(semi_ndwi_image.multiply(semi_ndwi_mask.neq(0.0)))
+    new_image = new_image.add(semi_ndwi_image)
+
+    folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_mask_SU'
+    task = export_image(new_image, file_name, region, folder)
 
 def get_area_of_interest(area_name):
 
@@ -279,7 +303,7 @@ def download_sar(region):
     folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
     start_date = os.getenv("START_DATE")
     aggregate_function = os.getenv("AGGREGATE_FUNCTION")
-    file_name = f'{shape_name}_{aggregate_function}_{start_date}_sar_{polarization}'
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_sar_{polarization}_SU'
     # file_name = f'small_sweden_sar_{polarization}'
     task = export_image(sar_image, file_name, region, folder)
 
@@ -368,7 +392,7 @@ def bulk_export_sar(area_name):
         namePattern='{id}',
         scale=10,
         dataType="float",
-        region=roi,
+        # region=roi,
         crs='EPSG:4326',
         datePattern=None,
         extra=None,
@@ -377,8 +401,8 @@ def bulk_export_sar(area_name):
 
 
 def bulk_export_ndwi(area_name):
-    start_date = '2014-01-01'
-    end_date = '2023-12-31'
+    start_date = '2022-10-01'
+    end_date = '2022-12-31'
 
     roi = get_area_of_interest(area_name)
 
@@ -645,14 +669,14 @@ def main():
     # utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
     # region = get_area_of_interest('small_sweden')
-    # download_ndwi_mask(region)
-    # download_image('ndwi_binary', region)
+    download_ndwi_mask(region)
+    #download_image('ndwi_binary', region)
     # download_image('mndwi_binary', region)
-    download_image('awei_binary', region)
+    # download_image('awei_binary', region)
     # download_image('hrwi_binary', region)
     # download_image('dynamic_world_water_binary', region)
 
-    # download_sar(region)
+    download_sar(region)
     # download_sar_vv_plus_vh(region)
 
     # bulk_export_sar(study_area)
@@ -671,5 +695,3 @@ main()
 end = time.time()
 total_time = end - start
 print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
-
-

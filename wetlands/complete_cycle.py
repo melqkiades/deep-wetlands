@@ -11,9 +11,9 @@ def main():
     config = dotenv_values()
     print(json.dumps(config, indent=4))
 
-    generate_ndwi.full_cycle()
-    generate_sar.full_cycle()
-    train_model.full_cycle()
+    # generate_ndwi.full_cycle()
+    # generate_sar.full_cycle()
+    # train_model.full_cycle()
     map_wetlands.full_cycle()
     estimate_water.main()
     performance_evaluator.full_cycle()

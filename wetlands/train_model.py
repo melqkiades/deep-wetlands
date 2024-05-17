@@ -15,6 +15,7 @@ from loss_functions import loss_function_factory
 from model import model_factory
 from wetlands import utils, map_wetlands, viz_utils
 from wetlands.jaccard_similarity import calculate_intersection_over_union
+from torch.profiler import profile, record_function, ProfilerActivity
 
 
 class CFDDataset(Dataset):
@@ -181,7 +182,8 @@ def full_cycle():
         config[key] = float(config[key])
 
     # Configure the wandb run
-    wandb.init(project="test-project", entity="deep-wetlands", config=config)
+    # wandb.login(key='1c089ca5602990a00ab2f51946d18aa4487c42dc')
+    wandb.init(project="deepaqua", config=config)
     # wandb.init(project="sweeps", entity="deep-wetlands", config=config)
     config.update(wandb.config)
     print(json.dumps(config, indent=4))
@@ -234,60 +236,66 @@ def full_cycle():
     criterion = loss_function_factory.create_loss_function(loss_function_name)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    model = torch.nn.DataParallel(model)
     model.to(device)
     max_score = 0
-    for epoch in range(1, n_epochs + 1):
-        print("\nEpoch {}/{} {}".format(epoch, n_epochs, time.strftime("%Y/%m/%d-%H:%M:%S")))
-        print("-" * 10)
+    with profile(activities=[
+        ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, with_stack=True) as prof:
+        with record_function("model_inference"):
+            for epoch in range(1, n_epochs + 1):
+                print("\nEpoch {}/{} {}".format(epoch, n_epochs, time.strftime("%Y/%m/%d-%H:%M:%S")))
+                print("-" * 10)
 
-        train_metrics = train(
-            model,
-            dataloaders["train"],
-            criterion,
-            optimizer,
-            device
-        )
-        val_metrics = evaluate(
-            model,
-            dataloaders['test'],
-            criterion,
-            device
-        )
+                train_metrics = train(
+                    model,
+                    dataloaders["train"],
+                    criterion,
+                    optimizer,
+                    device
+                )
+                val_metrics = evaluate(
+                    model,
+                    dataloaders['test'],
+                    criterion,
+                    device
+                )
 
-        # mask_data = np.array([[1, 2, 2, ..., 2, 2, 1], ...])
-        class_labels = {
-            0: "land",
-            1: "water",
-        }
+                # mask_data = np.array([[1, 2, 2, ..., 2, 2, 1], ...])
+                class_labels = {
+                    0: "land",
+                    1: "water",
+                }
 
-        pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
+                pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
 
-        full_mask_img = wandb.Image(tiff_image, masks={
-            "predictions": {
-                "mask_data": pred_mask,
-                "class_labels": class_labels
-            },
-        }, caption=["Full water detection", "fwd", "fwdm"])
+                full_mask_img = wandb.Image(tiff_image, masks={
+                    "predictions": {
+                        "mask_data": pred_mask,
+                        "class_labels": class_labels
+                    },
+                }, caption=["Full water detection", "fwd", "fwdm"])
 
-        # Count values of full_pred array
+                # Count values of full_pred array
 
-        full_pred = wandb.Image(pred_mask, caption="Full prediction")
+                full_pred = wandb.Image(pred_mask, caption="Full prediction")
 
-        metrics = {
-            **train_metrics, **val_metrics, 'full_pred': full_pred, 'full_mask': full_mask_img
-        }
+                metrics = {
+                    **train_metrics, **val_metrics, 'full_pred': full_pred, 'full_mask': full_mask_img
+                }
 
-        print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
-        wandb.log(metrics)
+                print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
+                wandb.log(metrics)
 
-        if metrics['val_iou'] > max_score:
-            max_score = metrics['val_iou']
-            model_file = f'{run_name}_best_model.pth'
-            save_model(model, model_dir, model_file)
-            print(f'New best model found on epoch {epoch}. Validation IoU: {max_score}')
-
+                if metrics['val_iou'] > max_score:
+                    max_score = metrics['val_iou']
+                    model_file = f'{run_name}_best_model.pth'
+                    save_model(model, model_dir, model_file)
+                    print(f'New best model found on epoch {epoch}. Validation IoU: {max_score}')
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    # print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
     pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
-
+    prof.export_chrome_trace("trace.json")
+    prof.export_stacks("profiler_stacks.txt", "self_cuda_time_total")
     plt.imshow(pred_mask)
     plt.show()
     plt.clf()
