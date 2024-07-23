@@ -10,19 +10,32 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 import rasterio as rio
-
+import cv2
 from loss_functions import loss_function_factory
 from model import model_factory
 from wetlands import utils, map_wetlands, viz_utils
 from wetlands.jaccard_similarity import calculate_intersection_over_union
 from torch.profiler import profile, record_function, ProfilerActivity
+from skimage import io
 
 
 class CFDDataset(Dataset):
-    def __init__(self, dataset, images_dir, masks_dir):
+    def __init__(self, dataset, images_dir, masks_dir, past_images_dir=None, future_images_dir=None,
+                 past_images2_dir=None, future_images2_dir=None):
         self.dataset = dataset
         self.images_dir = images_dir
         self.masks_dir = masks_dir
+        if past_images_dir is not None:
+            self.past_images_dir = past_images_dir
+            self.future_images_dir = future_images_dir
+            if past_images2_dir is not None:
+                self.past_images2_dir = past_images2_dir
+                self.future_images2_dir = future_images2_dir
+                self.num_dates = 2
+            else:
+                self.num_dates = 1
+        else:
+            self.num_dates = 0
 
     def __getitem__(self, index):
         index_ = self.dataset.iloc[index]['id']
@@ -30,41 +43,157 @@ class CFDDataset(Dataset):
         # Get image and mask file paths for specified index
         image_path = self.images_dir + str(index_) + '-sar.tif'
         mask_path = self.masks_dir + str(index_) + '-ndwi_mask.tif'
+        if self.num_dates > 0:
+            past_image_path = self.past_images_dir + str(index_) + '-sar.tif'
+            future_image_path = self.future_images_dir + str(index_) + '-sar.tif'
+            if self.num_dates > 1:
+                past_image2_path = self.past_images2_dir + str(index_) + '-sar.tif'
+                future_image2_path = self.future_images2_dir + str(index_) + '-sar.tif'
 
         # Read image
         image = rio.open(image_path).read()
 
         # Read image
         mask = rio.open(mask_path).read()
-
+        if self.num_dates > 0:
+            past_image = rio.open(past_image_path).read()
+            future_image = rio.open(future_image_path).read()
+            if self.num_dates > 1:
+                past_image2 = rio.open(past_image2_path).read()
+                future_image2 = rio.open(future_image2_path).read()
         # Convert to Pytorch tensor
         image_tensor = torch.from_numpy(image.astype(np.float32))
         mask_tensor = torch.from_numpy(mask.astype(np.float32))
+        if self.num_dates > 0:
+            past_image_tensor = torch.from_numpy(past_image.astype(np.float32))
+            future_image_tensor = torch.from_numpy(future_image.astype(np.float32))
+            if self.num_dates > 1:
+                past_image2_tensor = torch.from_numpy(past_image2.astype(np.float32))
+                future_image2_tensor = torch.from_numpy(future_image2.astype(np.float32))
 
-        return image_tensor, mask_tensor
+        if self.num_dates == 0:
+            return image_tensor, mask_tensor
+        elif self.num_dates == 1:
+            return image_tensor, mask_tensor, past_image_tensor, future_image_tensor
+        elif self.num_dates == 2:
+            return image_tensor, mask_tensor, past_image_tensor, future_image_tensor, past_image2_tensor, future_image2_tensor
 
     def __len__(self):
         return len(self.dataset)
 
 
-def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir):
-    datasets = {
-        'train' : CFDDataset(data[data.split == 'train'], images_dir, masks_dir),
-        'test' : CFDDataset(data[data.split == 'test'], images_dir, masks_dir)
-    }
+class CFDDataset_in_memory(Dataset):
+    def __init__(self, dataset, images_dir, masks_dir, past_images_dir=None, future_images_dir=None,
+                 past_images2_dir=None, future_images2_dir=None):
+        self.patch_size = int(os.getenv('PATCH_SIZE'))
+        self.dataset = dataset
+        self.images_dir = images_dir
+        self.masks_dir = masks_dir
+        if past_images_dir is not None:
+            self.past_images_dir = past_images_dir
+            self.future_images_dir = future_images_dir
+            if past_images2_dir is not None:
+                self.past_images2_dir = past_images2_dir
+                self.future_images2_dir = future_images2_dir
+                self.num_dates = 2
+            else:
+                self.num_dates = 1
+        else:
+            self.num_dates = 0
+        self.num_images = self.dataset.shape[0]
+        self.sar_images = np.zeros((self.num_images, 1, self.patch_size, self.patch_size), np.float32)
+        self.ground_truth_masks = np.zeros((self.num_images, 1, self.patch_size, self.patch_size), np.float32)
+        if self.num_dates > 0:
+            self.past_sar_images = np.zeros((self.num_images, 1, self.patch_size, self.patch_size), np.float32)
+            self.future_sar_images = np.zeros((self.num_images, 1, self.patch_size, self.patch_size), np.float32)
+            if self.num_dates > 1:
+                self.past_sar_images2 = np.zeros((self.num_images, 1, self.patch_size, self.patch_size), np.float32)
+                self.future_sar_images2 = np.zeros((self.num_images, 1, self.patch_size, self.patch_size), np.float32)
+        for i in range(self.num_images):
+            index_ = self.dataset.iloc[i]['id']
+            image_path = self.images_dir + str(index_) + '-sar.tif'
+            mask_path = self.masks_dir + str(index_) + '-ndwi_mask.tif'
+            if self.num_dates > 0:
+                past_image_path = self.past_images_dir + str(index_) + '-sar.tif'
+                future_image_path = self.future_images_dir + str(index_) + '-sar.tif'
+                if self.num_dates > 1:
+                    past_image2_path = self.past_images2_dir + str(index_) + '-sar.tif'
+                    future_image2_path = self.future_images2_dir + str(index_) + '-sar.tif'
 
+            # Read image
+            self.sar_images[i][0] = io.imread(image_path)
+
+            # Read image
+            self.ground_truth_masks[i][0] = io.imread(mask_path)
+            if self.num_dates > 0:
+                self.past_sar_images[i][0] = io.imread(past_image_path)
+                self.future_sar_images[i][0] = io.imread(future_image_path)
+                if self.num_dates > 1:
+                    self.past_sar_images2[i][0] = io.imread(past_image2_path)
+                    self.future_sar_images2[i][0] = io.imread(future_image2_path)
+        # Convert to Pytorch tensor
+        self.sar_images = torch.from_numpy(self.sar_images)
+        self.ground_truth_masks = torch.from_numpy(self.ground_truth_masks)
+        if self.num_dates > 0:
+            self.past_sar_images = torch.from_numpy(self.past_sar_images)
+            self.future_sar_images = torch.from_numpy(self.future_sar_images)
+            if self.num_dates > 1:
+                self.past_sar_images2 = torch.from_numpy(self.past_sar_images2)
+                self.future_sar_images2 = torch.from_numpy(self.future_sar_images2)
+
+    def __getitem__(self, index):
+        if self.num_dates == 0:
+            return self.sar_images[index], self.ground_truth_masks[index]
+        elif self.num_dates == 1:
+            return self.sar_images[index], self.ground_truth_masks[index], self.past_sar_images[index], self.future_sar_images[index]
+        elif self.num_dates == 2:
+            return self.sar_images[index], self.ground_truth_masks[index], self.past_sar_images[index], self.future_sar_images[index], \
+                self.past_sar_images2[index], self.future_sar_images2[index]
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+
+def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir):
+    training_method = os.getenv('TRAINING_METHOD')
+    if training_method == 'standard':
+        datasets = {
+            'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir),
+            'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir)
+        }
+    elif training_method == 'temporal_consistency':
+        num_dates = int(os.getenv('TEMPORAL_CONSISTENCY_NUM_DATES'))
+        past_images_dir = os.getenv('PAST_SAR_DIR') + '/'
+        future_images_dir = os.getenv('FUTURE_SAR_DIR') + '/'
+        if num_dates == 1:
+            datasets = {
+                'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir, past_images_dir, future_images_dir),
+                'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir, past_images_dir, future_images_dir)
+            }
+        elif num_dates == 2:
+            past_images2_dir = os.getenv('PAST_SAR2_DIR') + '/'
+            future_images2_dir = os.getenv('FUTURE_SAR2_DIR') + '/'
+            datasets = {
+                'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir, past_images_dir,
+                                    future_images_dir, past_images2_dir, future_images2_dir),
+                'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir, past_images_dir,
+                                   future_images_dir, past_images2_dir, future_images2_dir)
+            }
     dataloaders = {
         'train': DataLoader(
           datasets['train'],
           batch_size=batch_size,
           shuffle=True,
-          num_workers=num_workers
+          num_workers=num_workers,
+          pin_memory=True
         ),
         'test': DataLoader(
           datasets['test'],
           batch_size=batch_size,
           drop_last=False,
-          num_workers=num_workers
+          num_workers=num_workers,
+          pin_memory=True
         )
     }
     return dataloaders
@@ -74,8 +203,19 @@ def train(model, dataloader, criterion, optimizer, device):
     model.train(True)
     losses = []
     ious = []
-
+    # step = 0
+    # with torch.profiler.profile(
+    #         schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
+    #         on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/test'),
+    #         record_shapes=True,
+    #         profile_memory=True,
+    #         with_stack=True
+    # ) as prof:
     for input, target in tqdm(dataloader, total=len(dataloader)):
+        # prof.step()
+        # if step >= 1 + 1 + 3:
+        #     break
+        # step += 1
         input = input.to(device)
         target = target.to(device)
 
@@ -103,7 +243,6 @@ def train(model, dataloader, criterion, optimizer, device):
 
     return metrics
 
-
 def evaluate(model, dataloader, criterion, device):
     model.eval()
     losses = []
@@ -130,6 +269,276 @@ def evaluate(model, dataloader, criterion, device):
     }
 
     return metrics
+
+
+def train_temporal_consistency(model, dataloader, criterion, optimizer, device, epoch):
+    model.train(True)
+    losses = []
+    ious = []
+    base_losses = []
+    past_consistency_losses = []
+    future_consistency_losses = []
+    past_consistency_losses2 = []
+    future_consistency_losses2 = []
+    past_ious = []
+    future_ious = []
+    past_ious2 = []
+    future_ious2 = []
+    temporal_consistency_criterion = loss_function_factory.create_loss_function('dice')
+    temporal_consistency_weight = float(os.getenv('TEMPORAL_CONSISTENCY_WEIGHT'))
+    temporal_consistency_starting_epoch = int(os.getenv('TEMPORAL_CONSISTENCY_START_EPOCH'))
+    temporal_consistency_num_dates = int(os.getenv('TEMPORAL_CONSISTENCY_NUM_DATES'))
+    # step = 0
+    # with torch.profiler.profile(
+    #         schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
+    #         on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/test'),
+    #         record_shapes=True,
+    #         profile_memory=True,
+    #         with_stack=True
+    # ) as prof:
+    if temporal_consistency_num_dates == 1:
+        for input, target, past_sar, future_sar in tqdm(dataloader, total=len(dataloader)):
+            # prof.step()
+            # if step >= 1 + 1 + 3:
+            #     break
+            # step += 1
+            input = input.to(device)
+            target = target.to(device)
+            past_sar = past_sar.to(device)
+            future_sar = future_sar.to(device)
+
+            optimizer.zero_grad()
+
+            with torch.set_grad_enabled(True):
+                output = model(input)
+                past_output = model(past_sar)
+                future_output = model(future_sar)
+                loss = criterion(output, target)
+                past_consistency_loss = temporal_consistency_criterion(past_output, output)
+                future_consistency_loss = temporal_consistency_criterion(future_output, output)
+                if epoch < temporal_consistency_starting_epoch:
+                    current_temporal_consistency_weight = 0.
+                else:
+                    current_temporal_consistency_weight = temporal_consistency_weight
+                total_loss = loss + current_temporal_consistency_weight * (past_consistency_loss + future_consistency_loss)
+
+                total_loss.backward()
+                optimizer.step()
+
+                iou = intersection_over_union(output, target)
+                past_iou = intersection_over_union(past_output, output)
+                future_iou = intersection_over_union(future_output, output)
+                losses.append(total_loss.cpu().detach().numpy())
+                base_losses.append(loss.cpu().detach().numpy())
+                past_consistency_losses.append(past_consistency_loss.cpu().detach().numpy())
+                future_consistency_losses.append(future_consistency_loss.cpu().detach().numpy())
+                ious.append(iou.cpu().detach().numpy())
+                past_ious.append(past_iou.cpu().detach().numpy())
+                future_ious.append(future_iou.cpu().detach().numpy())
+    elif temporal_consistency_num_dates == 2:
+        for input, target, past_sar, future_sar, past_sar2, future_sar2 in tqdm(dataloader, total=len(dataloader)):
+            # prof.step()
+            # if step >= 1 + 1 + 3:
+            #     break
+            # step += 1
+            input = input.to(device)
+            target = target.to(device)
+            past_sar = past_sar.to(device)
+            future_sar = future_sar.to(device)
+            past_sar2 = past_sar2.to(device)
+            future_sar2 = future_sar2.to(device)
+
+            optimizer.zero_grad()
+
+            with torch.set_grad_enabled(True):
+                output = model(input)
+                past_output = model(past_sar)
+                future_output = model(future_sar)
+                past_output2 = model(past_sar2)
+                future_output2 = model(future_sar2)
+                loss = criterion(output, target)
+                past_consistency_loss = temporal_consistency_criterion(past_output, output)
+                future_consistency_loss = temporal_consistency_criterion(future_output, output)
+                past_consistency_loss2 = temporal_consistency_criterion(past_output2, output)
+                future_consistency_loss2 = temporal_consistency_criterion(future_output2, output)
+                if epoch < temporal_consistency_starting_epoch:
+                    current_temporal_consistency_weight = 0.
+                else:
+                    current_temporal_consistency_weight = temporal_consistency_weight
+                total_loss = loss + current_temporal_consistency_weight * (
+                            past_consistency_loss + future_consistency_loss + past_consistency_loss2 + future_consistency_loss2)
+
+                total_loss.backward()
+                optimizer.step()
+
+                iou = intersection_over_union(output, target)
+                past_iou = intersection_over_union(past_output, output)
+                future_iou = intersection_over_union(future_output, output)
+                past_iou2 = intersection_over_union(past_output2, output)
+                future_iou2 = intersection_over_union(future_output2, output)
+                losses.append(total_loss.cpu().detach().numpy())
+                base_losses.append(loss.cpu().detach().numpy())
+                past_consistency_losses.append(past_consistency_loss.cpu().detach().numpy())
+                future_consistency_losses.append(future_consistency_loss.cpu().detach().numpy())
+                past_consistency_losses2.append(past_consistency_loss2.cpu().detach().numpy())
+                future_consistency_losses2.append(future_consistency_loss2.cpu().detach().numpy())
+                ious.append(iou.cpu().detach().numpy())
+                past_ious.append(past_iou.cpu().detach().numpy())
+                future_ious.append(future_iou.cpu().detach().numpy())
+                past_ious2.append(past_iou2.cpu().detach().numpy())
+                future_ious2.append(future_iou2.cpu().detach().numpy())
+
+    train_loss = np.mean(losses)
+    train_base_loss = np.mean(base_losses)
+    train_past_consistency_loss = np.mean(past_consistency_losses)
+    train_future_consistency_loss = np.mean(future_consistency_losses)
+    train_iou = np.mean(ious)
+    train_past_iou = np.mean(past_ious)
+    train_future_iou = np.mean(future_ious)
+    if temporal_consistency_num_dates > 1:
+        train_past_consistency_loss2 = np.mean(past_consistency_losses2)
+        train_future_consistency_loss2 = np.mean(future_consistency_losses2)
+        train_past_iou2 = np.mean(past_ious2)
+        train_future_iou2 = np.mean(future_ious2)
+    print('Train loss', train_loss, 'Train IOU', train_iou)
+
+    metrics = {
+        'train_loss': train_loss,
+        'train_base_loss': train_base_loss,
+        'train_past_consistency_loss': train_past_consistency_loss,
+        'train_future_consistency_loss': train_future_consistency_loss,
+        'train_iou': train_iou,
+        'train_past_iou': train_past_iou,
+        'train_future_iou': train_future_iou,
+    }
+    if temporal_consistency_num_dates > 1:
+        metrics['train_past_consistency_loss2'] = train_past_consistency_loss2
+        metrics['train_future_consistency_loss2'] = train_future_consistency_loss2
+        metrics['train_past_iou2'] = train_past_iou2
+        metrics['train_future_iou2'] = train_future_iou2
+
+    return metrics
+
+def evaluate_temporal_consistency(model, dataloader, criterion, device, epoch):
+    model.eval()
+    losses = []
+    ious = []
+    base_losses = []
+    past_consistency_losses = []
+    future_consistency_losses = []
+    past_consistency_losses2 = []
+    future_consistency_losses2 = []
+    past_ious = []
+    future_ious = []
+    past_ious2 = []
+    future_ious2 = []
+    temporal_consistency_criterion = loss_function_factory.create_loss_function('dice')
+    temporal_consistency_weight = float(os.getenv('TEMPORAL_CONSISTENCY_WEIGHT'))
+    temporal_consistency_starting_epoch = int(os.getenv('TEMPORAL_CONSISTENCY_START_EPOCH'))
+    temporal_consistency_num_dates = int(os.getenv('TEMPORAL_CONSISTENCY_NUM_DATES'))
+
+    if temporal_consistency_num_dates == 1:
+        for input, target, past_sar, future_sar in tqdm(dataloader, total=len(dataloader)):
+            input = input.to(device)
+            target = target.to(device)
+            past_sar = past_sar.to(device)
+            future_sar = future_sar.to(device)
+
+            with torch.set_grad_enabled(False):
+                output = model(input)
+                past_output = model(past_sar)
+                future_output = model(future_sar)
+                loss = criterion(output, target)
+                past_consistency_loss = temporal_consistency_criterion(past_output, output)
+                future_consistency_loss = temporal_consistency_criterion(future_output, output)
+                total_loss = loss + temporal_consistency_weight*(past_consistency_loss + future_consistency_loss)
+
+                iou = intersection_over_union(output, target)
+                past_iou = intersection_over_union(past_output, output)
+                future_iou = intersection_over_union(future_output, output)
+                losses.append(total_loss.cpu().detach().numpy())
+                base_losses.append(loss.cpu().detach().numpy())
+                past_consistency_losses.append(past_consistency_loss.cpu().detach().numpy())
+                future_consistency_losses.append(future_consistency_loss.cpu().detach().numpy())
+                ious.append(iou.cpu().detach().numpy())
+                past_ious.append(past_iou.cpu().detach().numpy())
+                future_ious.append(future_iou.cpu().detach().numpy())
+    elif temporal_consistency_num_dates == 2:
+        for input, target, past_sar, future_sar, past_sar2, future_sar2 in tqdm(dataloader, total=len(dataloader)):
+            input = input.to(device)
+            target = target.to(device)
+            past_sar = past_sar.to(device)
+            future_sar = future_sar.to(device)
+            past_sar2 = past_sar2.to(device)
+            future_sar2 = future_sar2.to(device)
+
+            with torch.set_grad_enabled(False):
+                output = model(input)
+                past_output = model(past_sar)
+                future_output = model(future_sar)
+                past_output2 = model(past_sar2)
+                future_output2 = model(future_sar2)
+                loss = criterion(output, target)
+                past_consistency_loss = temporal_consistency_criterion(past_output, output)
+                future_consistency_loss = temporal_consistency_criterion(future_output, output)
+                past_consistency_loss2 = temporal_consistency_criterion(past_output2, output)
+                future_consistency_loss2 = temporal_consistency_criterion(future_output2, output)
+                if epoch < temporal_consistency_starting_epoch:
+                    current_temporal_consistency_weight = 0.
+                else:
+                    current_temporal_consistency_weight = temporal_consistency_weight
+                total_loss = loss + current_temporal_consistency_weight * (
+                            past_consistency_loss + future_consistency_loss + past_consistency_loss2 + future_consistency_loss2)
+
+                iou = intersection_over_union(output, target)
+                past_iou = intersection_over_union(past_output, output)
+                future_iou = intersection_over_union(future_output, output)
+                past_iou2 = intersection_over_union(past_output2, output)
+                future_iou2 = intersection_over_union(future_output2, output)
+                losses.append(total_loss.cpu().detach().numpy())
+                base_losses.append(loss.cpu().detach().numpy())
+                past_consistency_losses.append(past_consistency_loss.cpu().detach().numpy())
+                future_consistency_losses.append(future_consistency_loss.cpu().detach().numpy())
+                past_consistency_losses2.append(past_consistency_loss2.cpu().detach().numpy())
+                future_consistency_losses2.append(future_consistency_loss2.cpu().detach().numpy())
+                ious.append(iou.cpu().detach().numpy())
+                past_ious.append(past_iou.cpu().detach().numpy())
+                future_ious.append(future_iou.cpu().detach().numpy())
+                past_ious2.append(past_iou2.cpu().detach().numpy())
+                future_ious2.append(future_iou2.cpu().detach().numpy())
+
+    val_loss = np.mean(losses)
+    val_base_loss = np.mean(base_losses)
+    val_past_consistency_loss = np.mean(past_consistency_losses)
+    val_future_consistency_loss = np.mean(future_consistency_losses)
+    val_iou = np.mean(ious)
+    val_past_iou = np.mean(past_ious)
+    val_future_iou = np.mean(future_ious)
+    if temporal_consistency_num_dates > 1:
+        val_past_consistency_loss2 = np.mean(past_consistency_losses2)
+        val_future_consistency_loss2 = np.mean(future_consistency_losses2)
+        val_past_iou2 = np.mean(past_ious2)
+        val_future_iou2 = np.mean(future_ious2)
+    print('Val loss', val_loss, 'Val IOU', val_iou)
+
+    metrics = {
+        'val_loss': val_loss,
+        'val_base_loss': val_base_loss,
+        'val_past_consistency_loss': val_past_consistency_loss,
+        'val_future_consistency_loss': val_future_consistency_loss,
+        'val_iou': val_iou,
+        'val_past_iou': val_past_iou,
+        'val_future_iou': val_future_iou,
+    }
+    if temporal_consistency_num_dates > 1:
+        metrics['val_past_consistency_loss2'] = val_past_consistency_loss2
+        metrics['val_future_consistency_loss2'] = val_future_consistency_loss2
+        metrics['val_past_iou2'] = val_past_iou2
+        metrics['val_future_iou2'] = val_future_iou2
+
+    return metrics
+
+
 
 
 def save_model(model, model_dir, model_file):
@@ -173,6 +582,7 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 
 def full_cycle():
+    print('CCCCCCCCCCCCCCCCCCC')
     config = dotenv_values()
     # Convert int values to int
     for key in ['EPOCHS', 'PATCH_SIZE', 'BATCH_SIZE', 'NUM_WORKERS', 'RANDOM_SEED']:
@@ -180,6 +590,8 @@ def full_cycle():
     # Convert float values to float
     for key in ['LEARNING_RATE']:
         config[key] = float(config[key])
+
+    training_method = config['TRAINING_METHOD']
 
     # Configure the wandb run
     # wandb.login(key='1c089ca5602990a00ab2f51946d18aa4487c42dc')
@@ -239,65 +651,91 @@ def full_cycle():
     model = torch.nn.DataParallel(model)
     model.to(device)
     max_score = 0
-    with profile(activities=[
-        ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, with_stack=True) as prof:
-        with record_function("model_inference"):
-            for epoch in range(1, n_epochs + 1):
-                print("\nEpoch {}/{} {}".format(epoch, n_epochs, time.strftime("%Y/%m/%d-%H:%M:%S")))
-                print("-" * 10)
+    # with profile(activities=[
+    #     ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, with_stack=True) as prof:
+    #     with record_function("model_inference"):
+    # with torch.profiler.profile(
+    #         # schedule=torch.profiler.schedule(),
+    #         on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/full'),
+    #         record_shapes=True,
+    #         profile_memory=True,
+    #         with_stack=True
+    # ) as prof:
+    for epoch in range(1, n_epochs + 1):
+        # prof.step()
+        print("\nEpoch {}/{} {}".format(epoch, n_epochs, time.strftime("%Y/%m/%d-%H:%M:%S")))
+        print("-" * 10)
+        # if epoch >= 3:
+        #     break
+        if training_method == 'standard':
+            train_metrics = train(
+                model,
+                dataloaders["train"],
+                criterion,
+                optimizer,
+                device
+            )
+            val_metrics = evaluate(
+                model,
+                dataloaders['test'],
+                criterion,
+                device
+            )
+        elif training_method == 'temporal_consistency':
+            train_metrics = train_temporal_consistency(
+                model,
+                dataloaders["train"],
+                criterion,
+                optimizer,
+                device,
+                epoch
+            )
+            val_metrics = evaluate_temporal_consistency(
+                model,
+                dataloaders['test'],
+                criterion,
+                device,
+                epoch
+            )
 
-                train_metrics = train(
-                    model,
-                    dataloaders["train"],
-                    criterion,
-                    optimizer,
-                    device
-                )
-                val_metrics = evaluate(
-                    model,
-                    dataloaders['test'],
-                    criterion,
-                    device
-                )
+        # mask_data = np.array([[1, 2, 2, ..., 2, 2, 1], ...])
+        class_labels = {
+            0: "land",
+            1: "water",
+        }
 
-                # mask_data = np.array([[1, 2, 2, ..., 2, 2, 1], ...])
-                class_labels = {
-                    0: "land",
-                    1: "water",
-                }
+        pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
 
-                pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
+        full_mask_img = wandb.Image(tiff_image, masks={
+            "predictions": {
+                "mask_data": pred_mask,
+                "class_labels": class_labels
+            },
+        }, caption=["Full water detection", "fwd", "fwdm"])
 
-                full_mask_img = wandb.Image(tiff_image, masks={
-                    "predictions": {
-                        "mask_data": pred_mask,
-                        "class_labels": class_labels
-                    },
-                }, caption=["Full water detection", "fwd", "fwdm"])
+        # Count values of full_pred array
 
-                # Count values of full_pred array
+        full_pred = wandb.Image(pred_mask, caption="Full prediction")
 
-                full_pred = wandb.Image(pred_mask, caption="Full prediction")
+        metrics = {
+            **train_metrics, **val_metrics, 'full_pred': full_pred, 'full_mask': full_mask_img
+        }
 
-                metrics = {
-                    **train_metrics, **val_metrics, 'full_pred': full_pred, 'full_mask': full_mask_img
-                }
+        print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
+        wandb.log(metrics)
 
-                print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
-                wandb.log(metrics)
-
-                if metrics['val_iou'] > max_score:
-                    max_score = metrics['val_iou']
-                    model_file = f'{run_name}_best_model.pth'
-                    save_model(model, model_dir, model_file)
-                    print(f'New best model found on epoch {epoch}. Validation IoU: {max_score}')
-    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+        model_file = f'epoch_{epoch}.pth'
+        save_model(model, os.path.join(model_dir, run_name), model_file)
+        if metrics['val_iou'] > max_score:
+            max_score = metrics['val_iou']
+            print(f'New best model found on epoch {epoch}. Validation IoU: {max_score}')
+    # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
     # print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
     pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
-    prof.export_chrome_trace("trace.json")
-    prof.export_stacks("profiler_stacks.txt", "self_cuda_time_total")
+    # prof.export_chrome_trace("trace.json")
+    # prof.export_stacks("profiler_stacks.txt", "self_cuda_time_total")
     plt.imshow(pred_mask)
-    plt.show()
+    # plt.show()
     plt.clf()
 
 
@@ -329,12 +767,14 @@ def load_and_test():
 
 
 def main():
-    load_dotenv()
-    config = dotenv_values()
-    print(json.dumps(config, indent=4))
+    if __name__ == '__main__':
+        print('BBBBBBBBBBBBBBBBBBBBB')
+        load_dotenv()
+        config = dotenv_values()
+        # print(json.dumps(config, indent=4))
 
-    full_cycle()
-    # load_and_test()
+        full_cycle()
+        # load_and_test()
 
 
 # start = time.time()

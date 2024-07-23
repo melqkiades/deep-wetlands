@@ -161,7 +161,8 @@ def transform_ndwi_tiff_to_grayscale_png(tiff_dir, band):
             continue
         tiff_path = f'{tiff_dir}/{tiff_file}'
         out_file = tiff_path.replace('.tif', '.png')
-        convert_ndwi_tiff_to_png(tiff_path, out_file, band)
+        if not os.path.exists(out_file):
+            convert_ndwi_tiff_to_png(tiff_path, out_file, band)
 
 
 def transform_rgb_tiff_to_png(tiff_dir):
@@ -181,7 +182,8 @@ def transform_rgb_tiff_to_png(tiff_dir):
 def load_image(dir_path, band, ignore_nan=False):
 
     tiff_image = rio.open(dir_path)
-    band_index = tiff_image.descriptions.index(band)
+    # band_index = tiff_image.descriptions.index(band)
+    band_index = 0
 
     numpy_image = tiff_image.read(band_index+1)
 

@@ -42,8 +42,8 @@ def rename_prediction_images(model_name):
         os.mkdir(model_performance_dir)
 
     # performance_dir = '/tmp/descending_otsu_flacksjon_exported_images/'
-    predictions_dir = f'{results_dir}/{model_name}_{study_area}_exported_images/'
-    [shutil.copyfile(predictions_dir + f, model_performance_dir + f[:8] + f'_{study_area}_pred_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
+    predictions_dir = f'{results_dir}/{model_name}_svartadalen_exported_images/'
+    [shutil.copyfile(predictions_dir + f, model_performance_dir + f[:10] + f'_{study_area}_pred_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
 
 
 def copy_annotated_images(model_name):
@@ -75,7 +75,23 @@ def iterate(model_name):
     prefix_length = len(annotated_file_prefix)
     for annotated_file in annotated_files:
         # Extract the date
-        date_str = annotated_file[prefix_length:prefix_length+10].replace('-', '')
+        #date_str = annotated_file[prefix_length:prefix_length+10].replace('-', '')
+        date_str = annotated_file[prefix_length:prefix_length + 10]
+
+        year = int(date_str.split('-')[0])
+        month = int(date_str.split('-')[1])
+        if year < 2018 or (year == 2018 and month < 7):
+            # destination_directory = area + '_pre_2018-07'
+            continue
+            category = 'pre_2018-07'
+        elif year > 2020 or (year == 2020 and month > 1):
+            # destination_directory = area + '_post_2020-01'
+            # continue
+            category = 'post_2020-01'
+        else:
+            # destination_directory = area + '_from_2018-07_to_2020-01'
+            continue
+            category = 'from_2018-07_to_2020-01'
 
         # Open the annotated file
         annotated_image = Image.open(model_performance_dir + annotated_file).convert('L')
@@ -155,7 +171,8 @@ def iterate(model_name):
 
     # Export metrics to CSV
     metrics_file = f'{performance_dir}/{model_name}_{study_area}_performance.csv'
-    with open(metrics_file, 'w') as f:
+    with open(metrics_file, 'a') as f:
+        f.write("%s,%s\n" % ('Time period', category))
         for key in metrics.keys():
             f.write("%s,%s\n" % (key, metrics[key]))
 
@@ -220,8 +237,6 @@ def setup_dynamic_world_data():
     # # Rename the dynamic world data files
 
 
-
-
 def full_cycle():
     load_dotenv()
 
@@ -231,9 +246,9 @@ def full_cycle():
 
     # setup_dynamic_world_data()
 
-    convert_annotated_data_to_png()
-    rename_prediction_images(model_name)
-    copy_annotated_images(model_name)
+    # convert_annotated_data_to_png()
+    # rename_prediction_images(model_name)
+    # copy_annotated_images(model_name)
     iterate(model_name)
 
 

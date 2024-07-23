@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from pathlib import Path
 
 import numpy
 import numpy as np
@@ -17,8 +18,9 @@ import glob
 
 
 def export_sar_data(tiles, tif_file):
-    export_folder = os.getenv('SAR_DIR')
     patch_size = int(os.getenv('PATCH_SIZE'))
+    export_folder = os.getenv('SAR_DIR')
+    Path(export_folder).mkdir(parents=True, exist_ok=True)
 
     with rio.open(tif_file) as src:
         dataset_array = src.read()
@@ -39,9 +41,15 @@ def export_sar_data(tiles, tif_file):
                 continue
 
             if out_image.shape[1] == patch_size + 1:
-                out_image = out_image[:, :-1, :]
+                if np.all(out_image==0, axis=2)[0][0]:
+                    out_image = out_image[:, 1:, :]
+                else:
+                    out_image = out_image[:, :-1, :]
             if out_image.shape[2] == patch_size + 1:
-                out_image = out_image[:, :, 1:]
+                if np.all(out_image == 0, axis=1)[0][0]:
+                    out_image = out_image[:, :, 1:]
+                else:
+                    out_image = out_image[:, :, :-1]
 
             if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
                 continue
@@ -83,17 +91,17 @@ def export_sar_data(tiles, tif_file):
         print(f'Warning: There were {nan_tiles} tiles with NaN values.')
 
 
-def export_sar_data_new(tiles, tif_file):
-    area_name = tif_file.split('\\')[-1].split('_')[0]# + '_' + tif_file.split('\\')[-1].split('_')[1]
+def export_sar_data_new(tiles, tif_file, minValue, maxValue):
     patch_size = int(os.getenv('PATCH_SIZE'))
-    export_folder = os.getenv('SAR_DIR') + '/' + area_name + '_' + str(patch_size) + 'x' + str(patch_size)
+    export_folder = 'C:/Users/ioia4268/data/sar_tiles/test_dataset_' + str(patch_size) + 'x' + str(patch_size)
+    Path(export_folder).mkdir(parents=True, exist_ok=True)
     # minValue = np.inf
     # maxValue = -np.inf
     # for tif_file in tif_files:
-    with rio.open('C:\\Users\\ioia4268\\PycharmProjects\\deep-wetlands\\data\\sar\\Orebro lan_mosaic_2018-07-04_sar_VH.tif') as src:
-        dataset_array = src.read()
-        minValue = numpy.nanpercentile(dataset_array, 1)
-        maxValue = numpy.nanpercentile(dataset_array, 99)
+    # with rio.open('C:\\Users\\ioia4268\\PycharmProjects\\deep-wetlands\\data\\sar\\Orebro lan_mosaic_2018-07-04_sar_VH.tif') as src:
+    #     dataset_array = src.read()
+    #     minValue = numpy.nanpercentile(dataset_array, 1)
+    #     maxValue = numpy.nanpercentile(dataset_array, 99)
 
     nan_tiles = 0
 
@@ -109,17 +117,26 @@ def export_sar_data_new(tiles, tif_file):
                 continue
 
             if out_image.shape[1] == patch_size + 1:
-                out_image = out_image[:, :-1, :]
+                if np.all(out_image==0, axis=2)[0][0]:
+                    out_image = out_image[:, 1:, :]
+                else:
+                    out_image = out_image[:, :-1, :]
             if out_image.shape[2] == patch_size + 1:
-                out_image = out_image[:, :, 1:]
+                if np.all(out_image == 0, axis=1)[0][0]:
+                    out_image = out_image[:, :, 1:]
+                else:
+                    out_image = out_image[:, :, :-1]
+
+            if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
+                continue
 
             # Min-max scale the data to range [0, 1]
             out_image[out_image > maxValue] = maxValue
             out_image[out_image < minValue] = minValue
             out_image = (out_image - minValue) / (maxValue - minValue)
 
-            if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
-                out_image = np.pad(out_image, ((0,0), (0, patch_size - out_image.shape[1]), (0, patch_size - out_image.shape[2])), 'constant', constant_values=-1)
+#            if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
+#                out_image = np.pad(out_image, ((0,0), (0, patch_size - out_image.shape[1]), (0, patch_size - out_image.shape[2])), 'constant', constant_values=-1)
 
             # Get the metadata of the source image and update it
             # with the width, height, and transform of the cropped image
@@ -156,21 +173,25 @@ def export_sar_data_new(tiles, tif_file):
 def full_cycle():
     file_name = os.getenv('GEOJSON_FILE')
     region_name = os.getenv('REGION_NAME')
-    # tif_file = os.getenv('SAR_TIFF_FILE')
+    tif_file = os.getenv('SAR_TIFF_FILE')
 
     country_code = os.getenv('COUNTRY_CODE')
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
     patch_size = int(os.getenv("PATCH_SIZE"))
 
-    # utils.download_country_boundaries(country_code, region_admin_level, file_name)
-    # geoboundary = utils.get_region_boundaries(region_name, file_name)
-    #
-    # tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
-    # export_sar_data(tiles, tif_file)
-    tif_files = glob.glob('C:\\Users\\ioia4268\\data\\sar\\svartadalen_clipped\\*.tif')
-    for tif_file in tif_files:
-        tiles = geo_utils.get_tiles(region_name, tif_file, patch_size)
-        export_sar_data_new(tiles, tif_file)
+    utils.download_country_boundaries(country_code, region_admin_level, file_name)
+    geoboundary = utils.get_region_boundaries(region_name, file_name)
+
+    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
+    export_sar_data(tiles, tif_file)
+    # with rio.open('C:\\Users\\ioia4268\\PycharmProjects\\deep-wetlands\\data\\sar\\Orebro lan_mosaic_2018-07-04_sar_VH.tif') as src:
+    #     dataset_array = src.read()
+    #     minValue = numpy.nanpercentile(dataset_array, 1)
+    #     maxValue = numpy.nanpercentile(dataset_array, 99)
+    # tif_files = glob.glob('C:\\Users\\ioia4268\\data\\sar\\test_dataset\\*.tif')
+    # for tif_file in tif_files:
+    #     tiles = geo_utils.get_tiles_batch(region_name, tif_file, patch_size)
+    #     export_sar_data_new(tiles, tif_file, minValue, maxValue)
 
 
 def main():

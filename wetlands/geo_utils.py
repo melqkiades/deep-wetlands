@@ -65,7 +65,7 @@ def generate_tiles(image_file, output_file, area_str, size):
     return results
 
 
-def generate_tiles(image_file, size):
+def generate_tiles_batch(image_file, size):
     """Generates size x size polygon tiles.
 
     Args:
@@ -77,7 +77,8 @@ def generate_tiles(image_file, size):
     Returns:
       GeoPandas DataFrame: Contains 64 x 64 polygon tiles
     """
-    area_str = image_file.split('\\')[-1].split('_')[0] + '_' + image_file.split('\\')[-1].split('_')[1]
+    area_str = image_file.split('\\')[-1].split('_')[0] + '_' + image_file.split('\\')[-1].split('_')[2].split('.')[0]
+    # area_str = os.path.basename(os.path.dirname(image_file))
     # Open the raster image using rasterio
     raster = rio.open(image_file)
     width, height = raster.shape
@@ -140,12 +141,12 @@ def get_tiles(shape_name, tif_file, geoboundary, size):
     return tiles
 
 
-def get_tiles(shape_name, tif_file, size):
+def get_tiles_batch(shape_name, tif_file, size):
     cwd = os.getenv("CWD_DIR")
     output_file = cwd + '/geojson_ndwi/{}.geojson'.format(shape_name)
     # output_file = output_file.replace(' ', '_')
 
-    tiles = generate_tiles(tif_file, size)
+    tiles = generate_tiles_batch(tif_file, size)
 
     # boundary = geoboundary[geoboundary.shapeName == shape_name]
     #

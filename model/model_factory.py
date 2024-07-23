@@ -6,7 +6,7 @@ from model.old_unet import OldUnet
 from model.unet import Unet
 
 import segmentation_models_pytorch as smp
-
+from collections import OrderedDict
 
 def create_model(model_name):
     unet_init_dim = int(os.getenv('UNET_INIT_DIM'))
@@ -31,7 +31,15 @@ def create_model(model_name):
 def load_model(model_name, model_file, device):
     loaded_model = create_model(model_name)
     loaded_model.to(device)
-    loaded_model.load_state_dict(torch.load(model_file, map_location=device))
+    if os.path.basename(model_file) in ['big-2018.pth', 'big-2020.pth',
+                                        'prime-2018', 'prime-2020.pth']:
+        loaded_model.load_state_dict(torch.load(model_file, map_location=device))
+    else:
+        old_dict = torch.load(model_file, map_location=device)
+        new_dict = OrderedDict([])
+        for key in old_dict:
+            new_dict[key[7:]] = old_dict[key]
+        loaded_model.load_state_dict(new_dict)
     loaded_model.eval()
 
     print('Model file {} successfully loaded.'.format(model_file))

@@ -14,6 +14,53 @@ from model import model_factory
 from wetlands import utils, viz_utils, map_wetlands, wandb_utils, noise_filters
 
 
+def visualize_predicted_image_evaluate(image, model, device, file_name, model_name):
+    study_area = os.getenv('STUDY_AREA')
+    patch_size = int(os.getenv('PATCH_SIZE'))
+    results_dir = os.getenv('RESULTS_DIR')
+
+    width = image.shape[0] - image.shape[0] % patch_size
+    height = image.shape[1] - image.shape[1] % patch_size
+    if model_name == 'otsu':
+        pred_mask = otsu_threshold(image)
+    elif model_name == 'otsu_gaussian':
+        kernel_size = os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
+        model_name += '_' + kernel_size
+        pred_mask = otsu_gaussian_threshold(image, int(kernel_size))
+    elif model_name == 'thresholding_2018':
+        pred_mask = threshold_method(image, 0.6486486486486487)
+    elif model_name == 'thresholding_2020':
+        pred_mask = threshold_method(image, 0.36236236236236236)
+    else:
+        pred_mask = map_wetlands.predict_water_mask(image, model, device)
+
+    unique, counts = np.unique(pred_mask, return_counts=True)
+    results = dict(zip(unique, counts))
+    image_date = file_name.split('_')[2]
+    satellite = file_name.split('_')[-1].split('.')[0]
+    results['Date'] = image_date
+    results['Satellite'] = satellite
+    results['File_name'] = file_name
+
+    images_dir = f'{results_dir}/{model_name}_{study_area}_exported_images/'
+
+    if not os.path.isdir(images_dir):
+        os.mkdir(images_dir)
+
+    # Plotting SAR
+    plt.imshow(image[:width, :height], cmap='gray')
+    plt.imsave(images_dir + image_date + '_' + file_name + '_sar.png', image)
+    plt.imsave(images_dir + image_date + '_' + file_name + '_sar_bw.png', image, cmap='gray')
+
+    # Plotting prediction
+    plt.imshow(pred_mask)
+    plt.imsave(images_dir + image_date + '_' + file_name + '_pred.png', pred_mask)
+    img = Image.fromarray(np.uint8((pred_mask) * 255), 'L')
+    img.save(images_dir + image_date + '_' + file_name + '_pred_bw.png')
+
+    return results
+
+
 def visualize_predicted_image(image, model, device, file_name, model_name):
     study_area = os.getenv('STUDY_AREA')
     patch_size = int(os.getenv('PATCH_SIZE'))
@@ -36,8 +83,8 @@ def visualize_predicted_image(image, model, device, file_name, model_name):
 
     unique, counts = np.unique(pred_mask, return_counts=True)
     results = dict(zip(unique, counts))
-    image_date = file_name[17:25]
-    satellite = file_name[0:3]
+    image_date = file_name.split('_')[2]
+    satellite = file_name.split('_')[-1].split('.')[0]
     results['Date'] = image_date
     results['Satellite'] = satellite
     results['File_name'] = file_name
@@ -114,7 +161,7 @@ def plot_results(model_name):
     charts_dir = os.getenv('CHARTS_DIR')
     results_dir = os.getenv('RESULTS_DIR')
     # results_file = '/tmp/water_estimates_flacksjon_2018-07.csv'
-    results_file = f'/{results_dir}/{model_name}_{study_area}_water_estimates.csv'
+    results_file = f'{results_dir}/{model_name}_{study_area}_water_estimates.csv'
     data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date'], index_col=["Date"],  parse_dates=["Date"])
 
     data_frame.plot(title=model_name)
@@ -149,6 +196,48 @@ def update_water_estimates(model_name):
     data_frame.to_csv(f'{results_dir}/{model_name}_{study_area}_new_water_estimates_filtered.csv')
 
 
+def full_cycle_evaluate(model_name):
+    load_dotenv()
+
+    tiff_dir = os.getenv('BULK_EXPORT_DIR')
+    results_dir = os.getenv('RESULTS_DIR')
+
+    if not os.path.exists(tiff_dir):
+        raise FileNotFoundError(f'The folder containing the TIFF files does not exist: {tiff_dir}')
+
+    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+    print(filenames)
+
+    device = utils.get_device()
+    model_file = os.getenv('MODEL_FILE')
+    cnn_type = os.getenv('CNN_TYPE')
+    sar_polarization = os.getenv('SAR_POLARIZATION')
+    model = model_factory.load_model(cnn_type, model_file, device)
+
+    results_list = []
+    incomplete_images = 0
+
+    for tiff_file in tqdm.tqdm(sorted(filenames)):
+        if not tiff_file.endswith('.tif'):
+            continue
+        results = get_prediction_image(tiff_dir + '/' + tiff_file, sar_polarization, model, device, model_name)
+
+        if results is None:
+            incomplete_images += 1
+        else:
+            results_list.append(results)
+
+    print(f'There were a total of {incomplete_images} incomplete images')
+
+    if model_name == 'otsu_gaussian':
+        model_name += '_' + os.getenv('OTSU_GAUSSIAN_KERNEL_SIZE')
+
+    data_frame = pandas.DataFrame(results_list)
+    data_frame['Date'] = data_frame['Date'].apply(pandas.to_datetime).dt.date
+    print(data_frame.head())
+    data_frame.to_csv(f'{results_dir}/{model_name}_deepaqua_test_dataset_water_estimates.csv')
+
+
 def full_cycle(model_name):
     load_dotenv()
 
@@ -168,9 +257,11 @@ def full_cycle(model_name):
     cnn_type = os.getenv('CNN_TYPE')
     sar_polarization = os.getenv('SAR_POLARIZATION')
     if model_name not in ['otsu', 'otsu_gaussian', 'thresholding_2018', 'thresholding_2020']:
-        model_path = wandb_utils.get_model_path()
-        model_name = wandb_utils.get_run_name()
+        # model_path = wandb_utils.get_model_path()
+        # model_name = wandb_utils.get_run_name()
         # model_path = f'/tmp/{model_name}_best_model.pth'
+        # model_path = "C:/Users/ioia4268/data/models/big-2020_best_model.pth"
+        model_path = "C:/Users/ioia4268/data/models/floral-durian-108_best_model.pth"
         model = model_factory.load_model(cnn_type, model_path, device)
     else:
         model = None
@@ -198,6 +289,21 @@ def full_cycle(model_name):
     print(data_frame.head())
     data_frame.to_csv(f'{results_dir}/{model_name}_{study_area}_water_estimates.csv')
 
+def evaluate():
+    load_dotenv()
+
+    charts_dir = os.getenv('CHARTS_DIR')
+    if not os.path.isdir(charts_dir):
+        os.mkdir(charts_dir)
+
+    results_dir = os.getenv('RESULTS_DIR')
+    if not os.path.isdir(results_dir):
+        os.mkdir(results_dir)
+    model_name = os.getenv('MODEL_NAME')
+    full_cycle_evaluate(model_name)
+    plot_results(model_name)
+    update_water_estimates(model_name)
+
 
 def main():
     load_dotenv()
@@ -223,6 +329,7 @@ def main():
     # rgb_tiff_dir = f'/tmp/bulk_export_{study_area}_rgb/'
     # viz_utils.transform_ndwi_tiff_to_grayscale_png(ndwi_tiff_dir, 'NDWI-mask')
     # viz_utils.transform_rgb_tiff_to_png(rgb_tiff_dir)
+
 
 
 # start = time.time()

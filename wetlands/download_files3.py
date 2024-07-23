@@ -1,3 +1,4 @@
+import glob
 import os
 import time
 from geetools import batch
@@ -253,8 +254,8 @@ def export_image(image, filename, region, folder):
         image=image,
         driveFolder=folder,
         scale=10,
-        region=region.geometry(),
-        # region=region,
+        # region=region.geometry(),
+        region=region,
         description=unidecode(filename),
         fileFormat='GeoTIFF',
         crs='EPSG:4326',
@@ -270,10 +271,13 @@ def download_sar(region):
     shape_name = os.getenv("REGION_NAME")
     polarization = os.getenv("SAR_POLARIZATION")
     orbit_pass = os.getenv("ORBIT_PASS")
-
-    image_collection = get_image_collection(product, region)
-
-    image_collection = image_collection \
+    region_name = os.getenv("STUDY_AREA")
+    region = get_area_of_interest(region_name)
+    start_date = '2018-01-01'
+    end_date = '2023-01-01'
+    image_collection = ee.ImageCollection(product) \
+        .filterBounds(region) \
+        .filterDate(start_date, end_date)\
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization)) \
         .filter(ee.Filter.eq('instrumentMode', 'IW')) \
         .filter(ee.Filter.eq('orbitProperties_pass', orbit_pass))\
@@ -281,40 +285,57 @@ def download_sar(region):
         .filter(ee.Filter.eq('resolution_meters', 10))
         # .filter(ee.Filter.eq('platform_number', 'A'))
     nimg = image_collection.toList(image_collection.size().getInfo()).size().getInfo()
-    print('num_im:', nimg)
-    sar_image = aggregate_and_clip(image_collection, region)
-    # sar_image = image_collection.lmit(1, 'system:time_start', True).first()
-    # for i in range(image_collection.size().getInfo()-1, -1, -1):
-    # for i in range(nimg):
-    #     sar_image = ee.Image(image_collection.toList(nimg).get(i))
-        # print(sar_image.date().format('yyyy-MM-dd').getInfo())
-    band_names = sar_image.bandNames()
-    print(band_names.getInfo())
+    image_collection_list = image_collection.toList(nimg)
+        # print('num_im:', nimg)
+        # sar_image = aggregate_and_clip(image_collection, region)
+        # sar_image = image_collection.lmit(1, 'system:time_start', True).first()
+        # for i in range(image_collection.size().getInfo()-1, -1, -1):
+    dates = []
+    for i in range(nimg):
+        sar_image = ee.Image(image_collection_list.get(i))
+        image_date = sar_image.date().format('yyyy-MM-dd').getInfo()
+        if image_date not in dates:
+            dates.append(image_date)
+    for date in dates:
+        start_date = ee.Date(date)
+        end_date = start_date.advance(1, 'days')
+        image_collection = ee.ImageCollection(product) \
+            .filterBounds(region) \
+            .filterDate(start_date, end_date) \
+            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization)) \
+            .filter(ee.Filter.eq('instrumentMode', 'IW')) \
+            .filter(ee.Filter.eq('orbitProperties_pass', orbit_pass)) \
+            .filter(ee.Filter.eq('resolution', 'H')) \
+            .filter(ee.Filter.eq('resolution_meters', 10))
 
-    sar_image = sar_image.select([polarization])
+        # band_names = sar_image.bandNames()
+        # print(band_names.getInfo())
+        sar_image = aggregate_and_clip(image_collection, region)
+        sar_image = sar_image.select([polarization])
 
-    percentiles = sar_image.reduceRegion(
-        reducer=ee.Reducer.percentile([0, 1, 5, 50, 95, 99, 100]),
-        geometry=region,
-        scale=10,
-        maxPixels=1e10
-    )
+        # percentiles = sar_image.reduceRegion(
+        #     reducer=ee.Reducer.percentile([0, 1, 5, 50, 95, 99, 100]),
+        #     geometry=region,
+        #     scale=10,
+        #     maxPixels=1e10
+        # )
+        #
+        # min_value = percentiles.get(f"{polarization}_p1").getInfo()
+        # max_value = percentiles.get(f"{polarization}_p99").getInfo()
+        #
+        # print(min_value)
+        # print(max_value)
 
-    min_value = percentiles.get(f"{polarization}_p1").getInfo()
-    max_value = percentiles.get(f"{polarization}_p99").getInfo()
+        sar_image = sar_image.float()
 
-    print(min_value)
-    print(max_value)
-
-    sar_image = sar_image.float()
-
-    folder = 'new_geo_exports'  # Change this to your file destination folder in Google drive
-    start_date = os.getenv("START_DATE")
-    # start_date = sar_image.date().format('yyyy-MM-dd').getInfo()
-    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
-    file_name = f'{shape_name}_{aggregate_function}_{start_date}_sar_{polarization}_aaaaaa'
-    # file_name = f'small_sweden_sar_{polarization}'
-    task = export_image(sar_image, file_name, region, folder)
+        folder = 'bulk_export_new'  # Change this to your file destination folder in Google drive
+        # start_date = date
+        # start_date = os.getenv("START_DATE")
+        # start_date = sar_image.date().format('yyyy-MM-dd').getInfo()
+        aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+        file_name = f'{region_name}_{aggregate_function}_{date}_sar_{polarization}'
+        # file_name = f'small_sweden_sar_{polarization}'
+        task = export_image(sar_image, file_name, region, folder)
 
 
 def download_sar_vv_plus_vh(region):
@@ -376,8 +397,8 @@ def bulk_export_sar(area_name):
     # end_date = '2018-07-09'
     # start_date = '2020-06-23'
     # end_date = '2020-06-24'
-    start_date = '2018-01-01'
-    end_date = '2022-12-31'
+    start_date = '2022-06-23'
+    end_date = '2022-07-24'
     orbit_pass = os.getenv("ORBIT_PASS")
 
     roi = get_area_of_interest(area_name)
@@ -401,9 +422,9 @@ def bulk_export_sar(area_name):
         namePattern='{id}',
         scale=10,
         dataType="float",
-        region=roi,
+        # region=roi,
         crs='EPSG:4326',
-        datePattern="yyyy-MM-dd",
+        datePattern=None,
         extra=None,
         verbose=False
     )
@@ -674,7 +695,7 @@ def main():
     country_code = os.getenv("COUNTRY_CODE")
     file_name = os.getenv("GEOJSON_FILE")
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
-    # study_area = os.getenv("STUDY_AREA")
+    study_area = os.getenv("STUDY_AREA")
     # utils.download_country_boundaries(country_code, region_admin_level, file_name)
     # region = get_region()
     # region = get_area_of_interest('small_sweden')
@@ -686,9 +707,10 @@ def main():
     # download_image('dynamic_world_water_binary', region)
 
     # download_sar(region)
+    download_sar('')
     # download_sar_vv_plus_vh(region)
-    study_area = 'svartadalen'
-    bulk_export_sar(study_area)
+
+    # bulk_export_sar(study_area)
     # bulk_export_ndwi(study_area)
     # bulk_export_rgb(study_area)
     # bulk_export_dynamic_world(study_area)

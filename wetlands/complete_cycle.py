@@ -3,24 +3,27 @@ import time
 
 from dotenv import load_dotenv, dotenv_values
 
-from wetlands import generate_ndwi, generate_sar, train_model, map_wetlands, estimate_water, performance_evaluator
+from wetlands import generate_ndwi, generate_sar, train_model, map_wetlands, estimate_water, performance_evaluator, evaluate_performance
 
 
 def main():
-    load_dotenv()
-    config = dotenv_values()
-    print(json.dumps(config, indent=4))
+    if __name__ == '__main__':
+        print('AAAAAAAAAAAAAAAAAA')
+        load_dotenv()
+        config = dotenv_values()
+        # print(json.dumps(config, indent=4))
 
-    # generate_ndwi.full_cycle()
-    # generate_sar.full_cycle()
-    # train_model.full_cycle()
-    map_wetlands.full_cycle()
-    estimate_water.main()
-    performance_evaluator.full_cycle()
+        # generate_ndwi.full_cycle()
+        # generate_sar.full_cycle()
+        train_model.full_cycle()
+        # map_wetlands.full_cycle()
+        # estimate_water.main()
+        # performance_evaluator.full_cycle()
+        # evaluate_performance.main()
 
-
-start = time.time()
-main()
-end = time.time()
-total_time = end - start
-print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+if __name__ == '__main__':
+    start = time.time()
+    main()
+    end = time.time()
+    total_time = end - start
+    print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))

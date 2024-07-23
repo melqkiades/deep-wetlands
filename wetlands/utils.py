@@ -95,22 +95,53 @@ def generate_model_file_name(epochs=None):
 
 
 def create_tiles_file():
+    training_method = os.getenv('TRAINING_METHOD')
     sar_dir = os.getenv('SAR_DIR')
     ndwi_dir = os.getenv('NDWI_MASK_DIR')
+    if training_method == 'temporal_consistency':
+        num_dates = int(os.getenv('TEMPORAL_CONSISTENCY_NUM_DATES'))
+        past_sar_dir = os.getenv('PAST_SAR_DIR')
+        future_sar_dir = os.getenv('FUTURE_SAR_DIR')
+        if num_dates > 1:
+            past_sar2_dir = os.getenv('PAST_SAR2_DIR')
+            future_sar2_dir = os.getenv('FUTURE_SAR2_DIR')
 
     sar_files = [f for f in os.listdir(sar_dir) if f.endswith('.tif')]
     ndwi_files = [f for f in os.listdir(ndwi_dir) if f.endswith('.tif')]
     sar_files.sort()
     ndwi_files.sort()
+    if training_method == 'temporal_consistency':
+        past_sar_files = [f for f in os.listdir(past_sar_dir) if f.endswith('.tif')]
+        future_sar_files = [f for f in os.listdir(future_sar_dir) if f.endswith('.tif')]
+        past_sar_files.sort()
+        future_sar_files.sort()
+        if num_dates > 1:
+            past_sar2_files = [f for f in os.listdir(past_sar2_dir) if f.endswith('.tif')]
+            future_sar2_files = [f for f in os.listdir(future_sar2_dir) if f.endswith('.tif')]
+            past_sar2_files.sort()
+            future_sar2_files.sort()
 
     # Remove the -sar.tif suffix from the file name
     sar_files = [f.replace('-sar.tif', '') for f in sar_files]
     ndwi_files = [f.replace('-ndwi_mask.tif', '') for f in ndwi_files]
+    if training_method == 'temporal_consistency':
+        past_sar_files = [f.replace('-sar.tif', '') for f in past_sar_files]
+        future_sar_files = [f.replace('-sar.tif', '') for f in future_sar_files]
+        if num_dates > 1:
+            past_sar2_files = [f.replace('-sar.tif', '') for f in past_sar2_files]
+            future_sar2_files = [f.replace('-sar.tif', '') for f in future_sar2_files]
 
     # Find the common files in both folders
-    common_files = list(set(sar_files) & set(ndwi_files))
-    region_name = os.getenv('REGION_NAME').lower().replace(' ', '_')
-    common_indexes = [int(f.replace(region_name + '-', '')) for f in common_files if region_name in f]
+    if training_method == 'standard':
+        common_files = list(set(sar_files) & set(ndwi_files))
+    elif training_method == 'temporal_consistency':
+        if num_dates == 1:
+            common_files = list(set(sar_files) & set(ndwi_files) & set(past_sar_files) & set(future_sar_files))
+        elif num_dates == 2:
+            common_files = list(set(sar_files) & set(ndwi_files) & set(past_sar_files) & set(future_sar_files) & set(past_sar2_files) & set(future_sar2_files))
+    area_name = os.getenv('STUDY_AREA').lower().replace(' ', '_')
+    common_indexes = [int(f.replace(area_name + '-', '')) for f in common_files if area_name in f]
+    # common_indexes = [int(f.split('-')[-1]) for f in common_files if area_name in f]
 
     # Create a dataframe from common_files and common_indexes and sort it by id
     tiles_data_frame = pandas.DataFrame({'index': common_indexes, 'id': common_files})

@@ -10,7 +10,7 @@ import rasterio as rio
 from matplotlib.colors import ListedColormap
 import rasterio.mask
 from tqdm import tqdm
-
+from pathlib import Path
 from wetlands import utils, geo_utils
 
 from dotenv import load_dotenv, dotenv_values
@@ -18,14 +18,16 @@ import glob
 
 
 def export_ndwi_mask_data(tiles, tif_file):
-
-    export_folder = os.getenv('NDWI_MASK_DIR')
     patch_size = int(os.getenv('PATCH_SIZE'))
+    export_folder = os.getenv('NDWI_MASK_DIR')
+    Path(export_folder).mkdir(parents=True, exist_ok=True)
 
-    with rio.open(tif_file) as src:
-        dataset_array = src.read()
-        minValue = np.nanpercentile(dataset_array, 1)
-        maxValue = np.nanpercentile(dataset_array, 99)
+    # with rio.open(tif_file) as src:
+    #     dataset_array = src.read()
+    #     plt.imshow(np.nan_to_num(dataset_array[0]))
+    #     plt.show()
+    #     minValue = np.nanpercentile(dataset_array, 1)
+    #     maxValue = np.nanpercentile(dataset_array, 99)
 
     nan_tiles = 0
 
@@ -36,22 +38,32 @@ def export_ndwi_mask_data(tiles, tif_file):
             shape = [tiles.iloc[index]['geometry']]
             name = tiles.iloc[index]['id']
             out_image, out_transform = rio.mask.mask(src, shape, crop=True)
+            # if np.any(out_image==0):
+            #     a=0
             if np.isnan(out_image).any():
                 nan_tiles += 1
                 continue
 
             if out_image.shape[1] == patch_size + 1:
-                out_image = out_image[:, :-1, :]
+                if np.all(out_image==0, axis=2)[0][0]:
+                    out_image = out_image[:, 1:, :]
+                else:
+                    out_image = out_image[:, :-1, :]
             if out_image.shape[2] == patch_size + 1:
-                out_image = out_image[:, :, 1:]
+                if np.all(out_image == 0, axis=1)[0][0]:
+                    out_image = out_image[:, :, 1:]
+                else:
+                    out_image = out_image[:, :, :-1]
 
             if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
                 continue
 
             # Min-max scale the data to range [0, 1]
-            out_image[out_image > maxValue] = maxValue
-            out_image[out_image < minValue] = minValue
-            out_image = (out_image - minValue) / (maxValue - minValue)
+            # out_image[out_image > maxValue] = maxValue
+            # out_image[out_image < minValue] = minValue
+            # out_image = (out_image - minValue) / (maxValue - minValue)
+
+            out_image[out_image==0.5] = 0
 
             # Get the metadata of the source image and update it
             # with the width, height, and transform of the cropped image
@@ -87,13 +99,14 @@ def export_ndwi_mask_data(tiles, tif_file):
 
 
 def export_ndwi_mask_data_new(tiles, tif_file):
-    area_name = tif_file.split('\\')[-1].split('_')[0]  # + '_' + tif_file.split('\\')[-1].split('_')[1]
     patch_size = int(os.getenv('PATCH_SIZE'))
-    export_folder = os.getenv('NDWI_MASK_DIR') + '/' + area_name + '_' + str(patch_size) + 'x' + str(patch_size)
-
+    export_folder = 'C:/Users/ioia4268/data/ndwi_masks_tiles/test_dataset_' + str(patch_size) + 'x' + str(patch_size)
+    Path(export_folder).mkdir(parents=True, exist_ok=True)
 
     # with rio.open(tif_file) as src:
     #     dataset_array = src.read()
+    #     plt.imshow(np.nan_to_num(dataset_array[0]))
+    #     plt.show()
     #     minValue = np.nanpercentile(dataset_array, 1)
     #     maxValue = np.nanpercentile(dataset_array, 99)
 
@@ -111,19 +124,29 @@ def export_ndwi_mask_data_new(tiles, tif_file):
                 continue
 
             if out_image.shape[1] == patch_size + 1:
-                out_image = out_image[:, :-1, :]
+                if np.all(out_image==0, axis=2)[0][0]:
+                    out_image = out_image[:, 1:, :]
+                else:
+                    out_image = out_image[:, :-1, :]
             if out_image.shape[2] == patch_size + 1:
-                out_image = out_image[:, :, 1:]
+                if np.all(out_image == 0, axis=1)[0][0]:
+                    out_image = out_image[:, :, 1:]
+                else:
+                    out_image = out_image[:, :, :-1]
 
-            # # Min-max scale the data to range [0, 1]
+            if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
+                continue
+            # if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
+            #     out_image = np.pad(out_image, ((0,0), (0, patch_size - out_image.shape[1]), (0, patch_size - out_image.shape[2])), 'constant', constant_values=-1)
+
+
+            # Min-max scale the data to range [0, 1]
             # out_image[out_image > maxValue] = maxValue
             # out_image[out_image < minValue] = minValue
             # out_image = (out_image - minValue) / (maxValue - minValue)
 
-            out_image[out_image == 0.5] = 0
+            # out_image[out_image == 0.5] = 0
 
-            if out_image.shape[1] != patch_size or out_image.shape[2] != patch_size:
-                out_image = np.pad(out_image, ((0,0), (0, patch_size - out_image.shape[1]), (0, patch_size - out_image.shape[2])), 'constant', constant_values=-1)
 
             # Get the metadata of the source image and update it
             # with the width, height, and transform of the cropped image
@@ -132,13 +155,14 @@ def export_ndwi_mask_data_new(tiles, tif_file):
                 "driver": "GTiff",
                 "height": out_image.shape[1],
                 "width": out_image.shape[2],
-                "transform": out_transform
+                "transform": out_transform,
+                "dtype":'float64'
             })
 
             # Save the cropped image as a temporary TIFF file.
             temp_tif = export_folder + '/{}-ndwi_mask.tif'.format(name)
             with rasterio.open(temp_tif, "w", **out_meta) as dest:
-                dest.write(out_image)
+                dest.write((out_image/255.0).astype(np.float64))
 
             # Save the cropped image as a temporary PNG file.
             temp_png = export_folder + '/{}-ndwi_mask.png'.format(name)
@@ -152,7 +176,7 @@ def export_ndwi_mask_data_new(tiles, tif_file):
 
             # Obtain a 4-channel image (R,G,B,A) in float [0, 1]
             # But we want to convert to RGB in uint8 and save it:
-            Image.fromarray((colored_image[:, :, :3] * 255).astype(np.uint8)).save(temp_png)
+            Image.fromarray(colored_image[:, :, :3].astype(np.uint8)).save(temp_png)
 
     if nan_tiles > 0:
         print(f'Warning: There were {nan_tiles} tiles with NaN values.')
@@ -161,19 +185,33 @@ def export_ndwi_mask_data_new(tiles, tif_file):
 def full_cycle():
     file_name = os.getenv('GEOJSON_FILE')
     region_name = os.getenv('REGION_NAME')
-    # tif_file = os.getenv('NDWI_TIFF_FILE')
+    tif_file = os.getenv('NDWI_TIFF_FILE')
     country_code = os.getenv('COUNTRY_CODE')
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
     patch_size = int(os.getenv("PATCH_SIZE"))
+
+    # fig, axs = plt.subplots(1, 2)
+
+    # with rio.open("C:\\Users\\ioia4268\\Downloads\\Orebro lan_mosaic_2020-06-23_ndwi_mask_cloud_10.tif") as src:
+    #     dataset_array = src.read()
+    #     a = axs[0].imshow(np.nan_to_num(dataset_array[0]))
+    #     plt.colorbar(a, ax=axs[0])
+    #     # plt.show()
+    #
+    # with rio.open('C:\\Users\\ioia4268\\PycharmProjects\\deep-wetlands\\data\\ndwi_masks\\Orebro lan_mosaic_2018-07-04_ndwi_mask.tif') as src:
+    #     dataset_array2 = src.read()
+    #     b = axs[1].imshow(np.nan_to_num(dataset_array2[0]))
+    #     plt.colorbar(b, ax=axs[1])
+    #     plt.show()
 
     # utils.download_country_boundaries(country_code, region_admin_level, file_name)
     # geoboundary = utils.get_region_boundaries(region_name, file_name)
     #
     # tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
     # export_ndwi_mask_data(tiles, tif_file)
-    tif_files = glob.glob('C:\\Users\\ioia4268\\data\\ndwi\\svartadalen_clipped\\*.tif')
+    tif_files = glob.glob('C:/Users/ioia4268/data/ndwi_masks/test_dataset/*.tif')
     for tif_file in tif_files:
-        tiles = geo_utils.get_tiles(region_name, tif_file, patch_size)
+        tiles = geo_utils.get_tiles_batch(region_name, tif_file, patch_size)
         export_ndwi_mask_data_new(tiles, tif_file)
 
 
