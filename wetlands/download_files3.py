@@ -8,7 +8,6 @@ import geopandas as gpd
 import ee
 import eeconvert as eec
 from unidecode import unidecode
-
 from wetlands import utils
 
 
@@ -272,7 +271,7 @@ def download_sar(region):
     polarization = os.getenv("SAR_POLARIZATION")
     orbit_pass = os.getenv("ORBIT_PASS")
     region_name = os.getenv("STUDY_AREA")
-    region = get_area_of_interest(region_name)
+    # region = get_area_of_interest(region_name)
     start_date = '2018-01-01'
     end_date = '2023-01-01'
     image_collection = ee.ImageCollection(product) \
@@ -697,17 +696,17 @@ def main():
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
     study_area = os.getenv("STUDY_AREA")
     # utils.download_country_boundaries(country_code, region_admin_level, file_name)
-    # region = get_region()
+    region = get_region()
     # region = get_area_of_interest('small_sweden')
-    # download_ndwi_mask(region)
+    download_ndwi_mask(region)
     # download_image('ndwi_binary', region)
     # download_image('mndwi_binary', region)
     # download_image('awei_binary', region)
     # download_image('hrwi_binary', region)
     # download_image('dynamic_world_water_binary', region)
 
-    # download_sar(region)
-    download_sar('')
+    download_sar(region)
+    # download_sar('')
     # download_sar_vv_plus_vh(region)
 
     # bulk_export_sar(study_area)

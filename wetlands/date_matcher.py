@@ -1,7 +1,9 @@
+import os
 import time
-
+import geopandas as gpd
 from dotenv import load_dotenv
 import ee
+import eeconvert as eec
 
 
 def get_flacksjon_geometry():
@@ -13,6 +15,21 @@ def get_flacksjon_geometry():
 
     return area_of_interest
 
+def get_region():
+    geojson_file = os.getenv("GEOJSON_FILE")
+
+    # Read data using GeoPandas
+    geoboundary = gpd.read_file(geojson_file)
+    print("Data dimensions: {}".format(geoboundary.shape))
+
+    shape_name = os.getenv('REGION_NAME')
+
+    # Get the shape geometry
+    region = geoboundary.loc[geoboundary.shapeName == shape_name]
+    region = eec.gdfToFc(region)
+
+    return region
+
 
 def get_image_date(image):
     return ee.Feature(None, {'date': image.date().format('YYYY-MM-dd')})
@@ -22,9 +39,11 @@ def get_sentinel1_dates(area_of_interest):
 
     sar_image_collection = ee.ImageCollection('COPERNICUS/S1_GRD')\
         .filterBounds(area_of_interest)\
-        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))\
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))\
         .filter(ee.Filter.eq('instrumentMode', 'IW'))\
-        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
+        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))\
+        .filter(ee.Filter.eq('resolution', 'H')) \
+        .filter(ee.Filter.eq('resolution_meters', 10))
 
     print("Number of SAR images = ", sar_image_collection.size().getInfo())
 
@@ -70,7 +89,8 @@ def main():
     ee.Authenticate()
     ee.Initialize()
 
-    get_matching_dates(get_flacksjon_geometry())
+    # get_matching_dates(get_flacksjon_geometry())
+    get_matching_dates(get_region())
 
 
 start = time.time()

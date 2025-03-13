@@ -392,22 +392,51 @@ def full_cycle(test_name):
 def main():
     load_dotenv()
 
-    results_dir = os.getenv('RESULTS_DIR')
+    test_name = 'st'
+    dataset_name = 'deepaqua_test_dataset_no_nov'
+
+    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
     if not os.path.isdir(results_dir):
-        os.mkdir(results_dir)
-    test_name = os.getenv('TEST_NAME')
-    charts_dir = os.getenv('CHARTS_DIR') + '/' + test_name
+        Path(results_dir).mkdir(parents=True, exist_ok=True)
+    charts_dir = os.getenv('CHARTS_DIR') + f'/{dataset_name}/{test_name}'
     if not os.path.isdir(charts_dir):
-        os.mkdir(charts_dir)
+        Path(charts_dir).mkdir(parents=True, exist_ok=True)
+    convert_annotated_data_to_png(dataset_name)
+    patch_size = int(os.getenv('PATCH_SIZE'))
 
-    full_cycle(test_name)
-    plot_results(test_name)
-    update_water_estimates(test_name)
-    convert_annotated_data_to_png()
-    rename_prediction_images(test_name)
-    copy_annotated_images(test_name)
-    iterate(test_name)
+    tiff_dir = 'C:/Users/ioia4268/data/sar/' + dataset_name
 
+    if not os.path.exists(tiff_dir):
+        raise FileNotFoundError(f'The folder containing the TIFF files does not exist: {tiff_dir}')
+
+    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+
+    images_dict = {}
+    incomplete_images = 0
+
+    for tiff_file in tqdm.tqdm(sorted(filenames)):
+        if not tiff_file.endswith('.tif'):
+            continue
+        image = viz_utils.load_image(tiff_dir + '/' + tiff_file, ignore_nan=True)
+        if image is None:
+            incomplete_images += 1
+        else:
+            images_dict[tiff_file] = image
+
+    print(f'There were a total of {incomplete_images} incomplete images')
+    annotated_data_dict = {}
+    annotations_dir = os.getenv('ANNOTATED_DATA_DIR') + '/' + dataset_name + '/'
+    annotated_files = [filename for filename in os.listdir(annotations_dir) if 'annotated_vh' in filename and filename.endswith('.png')]
+    for annotated_file in annotated_files:
+        # Open the annotated file
+        annotated_image = Image.open(annotations_dir + annotated_file).convert('L')
+
+        new_width = (annotated_image.width // patch_size) * patch_size
+        new_height = (annotated_image.height // patch_size) * patch_size
+        annotated_image = annotated_image.crop((0, 0, new_width, new_height))
+        annotated_data = np.array(annotated_image)
+        array_min, array_max = np.nanmin(annotated_data), np.nanmax(annotated_data)
+        # annotated_data = ((annotated_data - array_min) / (array_max - array_min)).astype(int)
 
 
 

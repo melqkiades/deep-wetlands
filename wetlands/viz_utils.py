@@ -6,6 +6,7 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from rasterio.plot import show
 import geopandas as gpd
+from skimage import io
 
 
 def normalize(array):
@@ -179,20 +180,22 @@ def transform_rgb_tiff_to_png(tiff_dir):
         convert_rgb_tiff_to_png(tiff_path, out_file)
 
 
-def load_image(dir_path, band, ignore_nan=False):
+def load_image(dir_path, ignore_nan=False, skimage_read=True, min_value=None, max_value=None):
+    if skimage_read:
+        numpy_image = io.imread(dir_path)
+    else:
+        tiff_image = rio.open(dir_path)
+        # band_index = tiff_image.descriptions.index(band)
+        band_index = 0
 
-    tiff_image = rio.open(dir_path)
-    # band_index = tiff_image.descriptions.index(band)
-    band_index = 0
-
-    numpy_image = tiff_image.read(band_index+1)
-
+        numpy_image = tiff_image.read(band_index+1)
     # If the image is incomplete and has NaN values we ignore it
     if ignore_nan and numpy.isnan(numpy_image).any():
         return None
 
-    min_value = numpy.nanpercentile(numpy_image, 1)
-    max_value = numpy.nanpercentile(numpy_image, 99)
+    if min_value is None:
+        min_value = numpy.nanpercentile(numpy_image, 1)
+        max_value = numpy.nanpercentile(numpy_image, 99)
 
     numpy_image[numpy_image > max_value] = max_value
     numpy_image[numpy_image < min_value] = min_value

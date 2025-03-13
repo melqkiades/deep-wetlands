@@ -10,30 +10,77 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 import rasterio as rio
-import cv2
 from loss_functions import loss_function_factory
 from model import model_factory
 from wetlands import utils, map_wetlands, viz_utils
 from wetlands.jaccard_similarity import calculate_intersection_over_union
-from torch.profiler import profile, record_function, ProfilerActivity
 from skimage import io
 import csv
 
 rng = np.random.default_rng()
 
-
-class CFDDataset_in_memory_direct(Dataset):
-    def __init__(self, sar_tiles, mask_tiles):
-        self.patch_size = int(os.getenv('PATCH_SIZE'))
-        self.sar_tiles = sar_tiles
-        self.mask_tiles = mask_tiles
-        self.num_tiles = self.sar_tiles.shape[0]
+class CFDDataset(Dataset):
+    def __init__(self, dataset, images_dir, masks_dir, past_images_dir=None, future_images_dir=None,
+                 past_images2_dir=None, future_images2_dir=None):
+        self.dataset = dataset
+        self.images_dir = images_dir
+        self.masks_dir = masks_dir
+        if past_images_dir is not None:
+            self.past_images_dir = past_images_dir
+            self.future_images_dir = future_images_dir
+            if past_images2_dir is not None:
+                self.past_images2_dir = past_images2_dir
+                self.future_images2_dir = future_images2_dir
+                self.num_dates = 2
+            else:
+                self.num_dates = 1
+        else:
+            self.num_dates = 0
 
     def __getitem__(self, index):
-        return self.sar_tiles[index], self.mask_tiles[index]
+        index_ = self.dataset.iloc[index]['id']
+
+        # Get image and mask file paths for specified index
+        image_path = self.images_dir + str(index_) + '-sar.tif'
+        mask_path = self.masks_dir + str(index_) + '-ndwi_mask.tif'
+        if self.num_dates > 0:
+            past_image_path = self.past_images_dir + str(index_) + '-sar.tif'
+            future_image_path = self.future_images_dir + str(index_) + '-sar.tif'
+            if self.num_dates > 1:
+                past_image2_path = self.past_images2_dir + str(index_) + '-sar.tif'
+                future_image2_path = self.future_images2_dir + str(index_) + '-sar.tif'
+
+        # Read image
+        image = rio.open(image_path).read()
+
+        # Read image
+        mask = rio.open(mask_path).read()
+        if self.num_dates > 0:
+            past_image = rio.open(past_image_path).read()
+            future_image = rio.open(future_image_path).read()
+            if self.num_dates > 1:
+                past_image2 = rio.open(past_image2_path).read()
+                future_image2 = rio.open(future_image2_path).read()
+        # Convert to Pytorch tensor
+        image_tensor = torch.from_numpy(image.astype(np.float32))
+        mask_tensor = torch.from_numpy(mask.astype(np.float32))
+        if self.num_dates > 0:
+            past_image_tensor = torch.from_numpy(past_image.astype(np.float32))
+            future_image_tensor = torch.from_numpy(future_image.astype(np.float32))
+            if self.num_dates > 1:
+                past_image2_tensor = torch.from_numpy(past_image2.astype(np.float32))
+                future_image2_tensor = torch.from_numpy(future_image2.astype(np.float32))
+
+        if self.num_dates == 0:
+            return image_tensor, mask_tensor
+        elif self.num_dates == 1:
+            return image_tensor, mask_tensor, past_image_tensor, future_image_tensor
+        elif self.num_dates == 2:
+            return image_tensor, mask_tensor, past_image_tensor, future_image_tensor, past_image2_tensor, future_image2_tensor
 
     def __len__(self):
-        return self.num_tiles
+        return len(self.dataset)
+
 
 class CFDDataset_in_memory(Dataset):
     def __init__(self, dataset, images_dir, masks_dir, past_images_dir=None, future_images_dir=None,
@@ -118,47 +165,44 @@ class CFDDataset_in_memory(Dataset):
 
 
 
-def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir, past_images_dir, future_images_dir, past_images2_dir, future_images2_dir):
-    # patch_size = int(os.getenv('PATCH_SIZE'))
-    # sar_path = images_dir
-    # mask_path = masks_dir
-    # sar_image = io.imread(sar_path)[:, :, 1]
-    # minValue = np.nanpercentile(sar_image, 1)
-    # maxValue = np.nanpercentile(sar_image, 99)
-    # sar_image[sar_image > maxValue] = maxValue
-    # sar_image[sar_image < minValue] = minValue
-    # sar_image = (sar_image - minValue) / (maxValue - minValue)
-    # mask_image = np.flip(io.imread(mask_path), 0)
-    # height, width = sar_image.shape
-    # tiles_height = height // patch_size
-    # tiles_width = width // patch_size
-    # num_tiles = tiles_height * tiles_width
-    # sar_tiles = np.zeros((num_tiles, 1, patch_size, patch_size), dtype='float32')
-    # mask_tiles = np.zeros((num_tiles, 1, patch_size, patch_size), dtype='float32')
-    # tiles_count = 0
-    # for i in range(tiles_height):
-    #     for j in range(tiles_width):
-    #         if not np.isnan(np.sum(sar_image[i * patch_size:(i + 1) * patch_size,
-    #                                j * patch_size:(j + 1) * patch_size])):
-    #             sar_tiles[tiles_count][0] = sar_image[i * patch_size:(i + 1) * patch_size,
-    #                                                   j * patch_size:(j + 1) * patch_size]
-    #             mask_tiles[tiles_count][0] = mask_image[i * patch_size:(i + 1) * patch_size,
-    #                                                    j * patch_size:(j + 1) * patch_size]
-    #             tiles_count += 1
-    # sar_tiles = sar_tiles[:tiles_count]
-    # mask_tiles = mask_tiles[:tiles_count]
-    # permutation = rng.permutation(len(sar_tiles))
-    # sar_tiles = sar_tiles[permutation]
-    # mask_tiles = mask_tiles[permutation]
-    # num_train_tiles = int(sar_tiles.shape[0]*0.8)
-    # datasets = {
-    #     'train': CFDDataset_in_memory_direct(sar_tiles[:num_train_tiles], mask_tiles[:num_train_tiles]),
-    #     'test': CFDDataset_in_memory_direct(sar_tiles[num_train_tiles:], mask_tiles[num_train_tiles:])
-    # }
-    datasets = {
-        'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir, past_images_dir, future_images_dir, past_images2_dir, future_images2_dir),
-        'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir, past_images_dir, future_images_dir, past_images2_dir, future_images2_dir)
-    }
+def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir, pre_2020):
+    training_method = os.getenv('TRAINING_METHOD')
+    if training_method == 'standard':
+        datasets = {
+            'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir),
+            'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir)
+        }
+    elif training_method == 'temporal_consistency':
+        num_dates = int(os.getenv('TEMPORAL_CONSISTENCY_NUM_DATES'))
+
+        if pre_2020:
+            past_images_dir = os.getenv('PRE_20_PAST_SAR_DIR') + '/'
+            future_images_dir = os.getenv('PRE_20_FUTURE_SAR_DIR') + '/'
+        else:
+            past_images_dir = os.getenv('POST_20_PAST_SAR_DIR') + '/'
+            future_images_dir = os.getenv('POST_20_FUTURE_SAR_DIR') + '/'
+        # past_images_dir = os.getenv('PAST_SAR_DIR') + '/'
+        # future_images_dir = os.getenv('FUTURE_SAR_DIR') + '/'
+        if num_dates == 1:
+            datasets = {
+                'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir, past_images_dir, future_images_dir),
+                'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir, past_images_dir, future_images_dir)
+            }
+        elif num_dates == 2:
+            if pre_2020:
+                past_images2_dir = os.getenv('PRE_20_PAST_SAR2_DIR') + '/'
+                future_images2_dir = os.getenv('PRE_20_FUTURE_SAR2_DIR') + '/'
+            else:
+                past_images2_dir = os.getenv('POST_20_PAST_SAR2_DIR') + '/'
+                future_images2_dir = os.getenv('POST_20_FUTURE_SAR2_DIR') + '/'
+            # past_images2_dir = os.getenv('PAST_SAR2_DIR') + '/'
+            # future_images2_dir = os.getenv('FUTURE_SAR2_DIR') + '/'
+            datasets = {
+                'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir, past_images_dir,
+                                    future_images_dir, past_images2_dir, future_images2_dir),
+                'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir, past_images_dir,
+                                   future_images_dir, past_images2_dir, future_images2_dir)
+            }
     dataloaders = {
         'train': DataLoader(
           datasets['train'],
@@ -570,7 +614,7 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
     return sar_image, pred_image, ndwi_image
 
 
-def full_cycle(test_name, area_name, training_date, past_date=None, future_date=None, past_date2=None, future_date2=None):
+def full_cycle(test_name, pre_2020=True):
     config = dotenv_values()
     # Convert int values to int
     for key in ['EPOCHS', 'PATCH_SIZE', 'BATCH_SIZE', 'NUM_WORKERS', 'EARLY_STOP_NUM_EPOCHS', 'TEMPORAL_CONSISTENCY_START_EPOCH',
@@ -676,37 +720,32 @@ def full_cycle(test_name, area_name, training_date, past_date=None, future_date=
     if seed != 'NONE':
         utils.plant_random_seed(seed)
 
-    tiles_data = utils.create_tiles_file(area_name, training_date)
-    patch_size = os.getenv('PATCH_SIZE')
-    images_dir = os.getenv('SAR_TILES_DIR') + '/' + area_name + '_' + training_date + '_' + patch_size + 'x' + patch_size + '/'
-    masks_dir = os.getenv(
-        'NDWI_MASK_TILES_DIR') + '/' + area_name + '_' + training_date + '_' + patch_size + 'x' + patch_size + '/'
-
-    training_method = os.getenv('TRAINING_METHOD')
-    if training_method == 'temporal_consistency':
-        num_dates = int(os.getenv('TEMPORAL_CONSISTENCY_NUM_DATES'))
-        past_images_dir = os.getenv(
-            'SAR_TILES_DIR') + '/' + area_name + '_' + past_date + '_' + patch_size + 'x' + patch_size
-        future_images_dir = os.getenv(
-            'NDWI_MASK_TILES_DIR') + '/' + area_name + '_' + future_date + '_' + patch_size + 'x' + patch_size
-        if num_dates > 1:
-            past_images2_dir = os.getenv(
-                'SAR_TILES_DIR') + '/' + area_name + '_' + past_date2 + '_' + patch_size + 'x' + patch_size
-            future_images2_dir = os.getenv(
-                'NDWI_MASK_TILES_DIR') + '/' + area_name + '_' + future_date2 + '_' + patch_size + 'x' + patch_size
-        else:
-            past_images2_dir = None
-            future_images2_dir = None
+    tiles_data = utils.create_tiles_file_pipeline(pre_2020)
+    if pre_2020:
+        images_dir = os.getenv('PRE_20_SAR_DIR') + '/'
+        masks_dir = os.getenv('PRE_20_MASK_DIR') + '/'
+        tiles_data_file = os.getenv('PRE_20_TILES_FILE')
+        training_date = os.getenv('PRE_20_TRAIN_DATE')
     else:
-        past_images_dir = future_images_dir = past_images2_dir = future_images2_dir = None
+        images_dir = os.getenv('POST_20_SAR_DIR') + '/'
+        masks_dir = os.getenv('POST_20_MASK_DIR') + '/'
+        tiles_data_file = os.getenv('POST_20_TILES_FILE')
+        training_date = os.getenv('POST_20_TRAIN_DATE')
+    # images_dir = os.getenv('SAR_DIR') + '/'
+    # masks_dir = os.getenv('NDWI_MASK_DIR') + '/'
+    # tiles_data_file = os.getenv('TILES_FILE')
+
     tiff_file = os.getenv('SINGLE_TEST_FILE')
     tiff_path = os.path.join(tiff_dir, tiff_file)
     tiff_image = viz_utils.load_image(tiff_path,  ignore_nan=True, skimage_read=False)
+    # tiff_image2 = viz_utils.load_image(tiff_path, ignore_nan=True)
 
     # Check is GPU is enabled
     device = utils.get_device()
 
-    dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir, past_images_dir, future_images_dir, past_images2_dir, future_images2_dir)
+    # tiles_data = pd.read_csv(tiles_data_file)#.groupby('split').sample(frac=0.05)
+
+    dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir, pre_2020)
 
     # model = Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks)
     model = model_factory.create_model(cnn_type)
@@ -805,7 +844,7 @@ def full_cycle(test_name, area_name, training_date, past_date=None, future_date=
             if training_method == 'standard' or temporal_consistency_weight == 0.:
                 if len(val_ious) > early_stop_num_epochs and np.max(val_ious[-early_stop_num_epochs:]) < np.max(val_ious):
                     stop_training = True
-            elif len(val_ious) >= early_stop_num_epochs + temporal_consistency_start_epoch and np.max(val_ious[-early_stop_num_epochs:]) < np.max(val_ious[temporal_consistency_start_epoch-1:]):
+            elif len(val_ious) >= early_stop_num_epochs + temporal_consistency_start_epoch and np.max(val_ious[-early_stop_num_epochs:]) < np.max(val_ious):
                 stop_training = True
         if stop_training:
             break
@@ -859,14 +898,13 @@ def main():
         load_dotenv()
         config = dotenv_values()
         # print(json.dumps(config, indent=4))
-        test_name = 'abigail_original_2024_shuffled_traintest_split'
-        for i in range(5):
-            full_cycle(test_name + '_run_' + str(i), 'original', '2024-07-19')
+
+        full_cycle()
         # load_and_test()
 
 
-start = time.time()
-main()
-end = time.time()
-total_time = end - start
-print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+# start = time.time()
+# main()
+# end = time.time()
+# total_time = end - start
+# print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))

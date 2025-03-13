@@ -1,7 +1,5 @@
 import os
 import shutil
-import sys
-
 import cv2
 import numpy as np
 import pandas
@@ -20,16 +18,11 @@ from pathlib import Path
 from skimage import io
 import time
 import csv
-import pickle
 
 
 def convert_area_name_to_color(area_name):
     area_name_to_color = {'hjalstaviken':'red', 'hornborgasjon':'blue', 'svartadalen':'green'}
-    if area_name in area_name_to_color:
-        color = area_name_to_color[area_name]
-    else:
-        color = 'red'
-    return color
+    return area_name_to_color[area_name]
 
 
 def convert_annotated_data_to_png(dataset_name):
@@ -63,16 +56,18 @@ def copy_annotated_images(test_name, epoch_num, dataset_name):
     [shutil.copyfile(annotations_dir +'/'+ f, model_performance_dir + f.lower()) for f in annotated_files]
 
 
-def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, description):
+def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, description, split_by_date=False):
 
     # 1. Iterate all the annotated images and extract the date
     ious = {}
     accuracies = {}
     predictions = {}
     annotations = {}
-    correct_values = {'hjalstaviken':{'Pixel accuracy': 0.96, 'IOU':0.68, 'Precision':0.81, 'Recall':0.81, 'F1':0.81},
-                      'hornborgasjon':{'Pixel accuracy': 0.98, 'IOU':0.94, 'Precision':0.98, 'Recall':0.96, 'F1':0.97},
-                      'svartadalen':{'Pixel accuracy': 0.97, 'IOU':0.88, 'Precision':0.98, 'Recall':0.9, 'F1':0.93}}
+    ious_list = []
+    if not split_by_date:
+        correct_values = {'hjalstaviken':{'Pixel accuracy': 0.96, 'IOU':0.68, 'Precision':0.81, 'Recall':0.81, 'F1':0.81},
+                          'hornborgasjon':{'Pixel accuracy': 0.98, 'IOU':0.94, 'Precision':0.98, 'Recall':0.96, 'F1':0.97},
+                          'svartadalen':{'Pixel accuracy': 0.97, 'IOU':0.88, 'Precision':0.98, 'Recall':0.9, 'F1':0.93}}
 
     performance_dir = os.getenv('EVALUATION_DIR') + f'/{dataset_name}/{test_name}'
     if not os.path.isdir(performance_dir):
@@ -89,6 +84,13 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
     print(annotated_files)
     for annotated_file in annotated_files:
         area_name = annotated_file.split('_')[0].lower()
+        year = annotated_file.split('_')[-1].split('-')[0]
+        if split_by_date:
+            if year in ['2018', '2019']:
+                date_period = '2018'
+            elif year in ['2020', '2021', '2022']:
+                date_period = '2020'
+            area_name = area_name + '_' + date_period
         if area_name not in ious.keys():
             ious[area_name] = []
             accuracies[area_name] = []
@@ -128,8 +130,11 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
 
         iou = jaccard_similarity.calculate_intersection_over_union(prediction_data, annotated_data_dict[annotated_file])
         ious[area_name].append(iou)
+        ious_list.append(iou)
         accuracy = (annotated_data_dict[annotated_file] == prediction_data).sum() / (annotated_data_dict[annotated_file].shape[0] * annotated_data_dict[annotated_file].shape[1])
         accuracies[area_name].append(accuracy)
+    image_results_df = pandas.DataFrame({'filename': annotated_files, 'iou': ious_list})
+    image_results_df.to_csv(f'{model_performance_dir}/filename_ious.csv')
     for area_name in ious.keys():
         print('\n\nAREA: ', area_name)
         result = semantic_segmentation_evaluator.eval_semantic_segmentation(predictions[area_name], annotations[area_name])
@@ -156,12 +161,19 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
         f1_score = 2 * (precision * recall) / (precision + recall)
         iou = TP / (TP + FP + FN)
         accuracy = (TP + TN) / (TP + TN + FP + FN)
-        print('Pixel accuracy:', accuracy, accuracy-correct_values[area_name]['Pixel accuracy'])
-        print('IOU:', iou, iou-correct_values[area_name]['IOU'])
-        print('Precision:', precision, precision-correct_values[area_name]['Precision'])
-        print('Recall:', recall, recall-correct_values[area_name]['Recall'])
-        print('F1 Score:', f1_score, f1_score-correct_values[area_name]['F1'])
-        print('Area under curve:', aucs_dataframe.iloc[0][area_name])
+        if not split_by_date:
+            print('Pixel accuracy:', accuracy, accuracy-correct_values[area_name]['Pixel accuracy'])
+            print('IOU:', iou, iou-correct_values[area_name]['IOU'])
+            print('Precision:', precision, precision-correct_values[area_name]['Precision'])
+            print('Recall:', recall, recall-correct_values[area_name]['Recall'])
+            print('F1 Score:', f1_score, f1_score-correct_values[area_name]['F1'])
+        else:
+            print('Pixel accuracy:', accuracy, accuracy)
+            print('IOU:', iou, iou)
+            print('Precision:', precision, precision)
+            print('Recall:', recall, recall)
+            print('F1 Score:', f1_score, f1_score)
+        # print('Area under curve:', aucs_dataframe.iloc[0][area_name])
 
         metrics = {
             'accuracy': accuracy,
@@ -173,11 +185,14 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
             'true_negatives': TN,
             'false_positives': FP,
             'false_negatives': FN,
-            'area_under_curve': aucs_dataframe.iloc[0][area_name]
+            # 'area_under_curve': aucs_dataframe.iloc[0][area_name]
         }
 
         # Export metrics to CSV
-        metrics_file = f'{performance_dir}/{description}_performance.csv'
+        if not split_by_date:
+            metrics_file = f'{performance_dir}/{description}_performance.csv'
+        else:
+            metrics_file = f'{performance_dir}/{description}_performance_split.csv'
         with open(metrics_file, 'a') as f:
             f.write("%s,%s\n" % ('Area', area_name))
             for key in metrics.keys():
@@ -307,8 +322,6 @@ def update_water_estimates(test_name, dataset_name, description):
     print(data_frame.columns.values)
     data_frame['area_name'] = data_frame.apply(lambda x:x['File_name'].split('_')[0], axis=1)
     data_frame['color'] = data_frame.apply(lambda x: convert_area_name_to_color(x['area_name']), axis=1)
-    data_frame.plot(x='Date', y='1.0', kind='scatter', title=f'{test_name} {description} [{dataset_name}]', c='color', ylim=(0, 10000000))
-    plt.savefig(f'{charts_dir}/{description}_scatter_water_estimates.png')
     ious = {}
     days = {}
     ious_skip_winter = {}
@@ -348,12 +361,12 @@ def update_water_estimates(test_name, dataset_name, description):
     data_frame['ious'] = ious_list
     data_frame['days'] = days_list
     data_frame.drop(['File_name'], axis=1, inplace=True)
-    # data_frame = data_frame[data_frame['Date'].dt.month.isin([4, 5, 6, 7, 8, 9, 10, 11])]
+    data_frame = data_frame[data_frame['Date'].dt.month.isin([4, 5, 6, 7, 8, 9, 10, 11])]
     # data_frame = data_frame[data_frame['Date'].dt.year.isin([2018, 2019, 2020, 2021, 2022])]
     print(data_frame.size)
     print(data_frame.columns.values)
 
-    data_frame.plot(x='Date', y='1.0', kind='scatter', title=f'{test_name} {description} [{dataset_name}]', c='color')
+    data_frame.plot(x='Date', y='1.0', kind='scatter', title=f'{test_name} {description} [{dataset_name}]', c='color', s=0.7**2)
     plt.savefig(f'{charts_dir}/{description}_scatter_new_water_estimates_filtered.png')
     plt.clf()
     areas_under_curve = {}
@@ -371,17 +384,6 @@ def update_water_estimates(test_name, dataset_name, description):
         # area_data_frame.plot(x='Date', y='ious', title=f'{test_name} ep. {epoch_num}_{area_name} [{dataset_name}] auc: {str(round(area_under_curve,2))}')
         area_under_curve = np.trapz(ious_skip_winter[area_name], x=days_skip_winter) / days_skip_winter[-1]
         areas_under_curve[area_name] = [area_under_curve]
-        # dbfile = open('dates', 'ab')
-        #
-        # # source, destination
-        # pickle.dump(dates_skip_winter[area_name], dbfile)
-        # dbfile.close()
-        # dbfile = open('ious', 'ab')
-        #
-        # # source, destination
-        # pickle.dump(ious_skip_winter[area_name], dbfile)
-        # dbfile.close()
-        # sys.exit()
         plt.plot(dates_skip_winter[area_name], ious_skip_winter[area_name], label='ious')
         plt.legend()
         plt.gcf().autofmt_xdate()
@@ -409,7 +411,7 @@ def full_cycle(test_name, dataset_name, images_dict, model_paths, description):
     results_list = []
     prediction_data = {}
 
-    for tiff_file in images_dict:
+    for tiff_file in tqdm.tqdm(images_dict) :
         if not tiff_file.endswith('.tif'):
             continue
         year = int(tiff_file.split('_')[2].split('-')[0])
@@ -452,10 +454,25 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
     images_dict = {}
     incomplete_images = 0
 
+    # with rio.open('C:\\Users\\ioia4268\\data\\sar\\Örebro län\\Orebro lan_mosaic_2018-07-04_sar_VH.tif') as src:
+    #     dataset_array = src.read()
+    #     minValue_2018 = np.nanpercentile(dataset_array, 1)
+    #     maxValue_2018 = np.nanpercentile(dataset_array, 99)
+    # with rio.open('C:\\Users\\ioia4268\\data\\sar\\Örebro län\\Orebro lan_mosaic_2020-06-23_sar_VH.tif') as src:
+    #     dataset_array = src.read()
+    #     minValue_2020 = np.nanpercentile(dataset_array, 1)
+    #     maxValue_2020 = np.nanpercentile(dataset_array, 99)
+
     for tiff_file in tqdm.tqdm(sorted(filenames)):
         if not tiff_file.endswith('.tif'):
             continue
-        image = viz_utils.load_image(tiff_dir + '/' + tiff_file, ignore_nan=True)
+        # if '2014' in tiff_file or'2015' in tiff_file or '2016' in tiff_file or '2017' in tiff_file or '2018' in tiff_file or '2019' in tiff_file:
+            # minValue = minValue_2018
+            # maxValue = maxValue_2018
+        # else:
+            # minValue = minValue_2020
+            # maxValue = maxValue_2020
+        image = viz_utils.load_image(tiff_dir + '/' + tiff_file, ignore_nan=True)#, min_value=minValue, max_value=maxValue)
         if image is None:
             incomplete_images += 1
         else:
@@ -489,7 +506,7 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
                (model_data['training_date'] == '2018-07-04')]['final_epoch'].values[-1],
                                      model_data.loc[(model_data['test_name'] == test_name) &
                (model_data['training_date'] == '2020-06-23')]['final_epoch'].values[-1])
-        for epoch_num in range(1, int(final_epoch_num) + 1):
+        for epoch_num in range(1, final_epoch_num + 1):
             description = f'epoch_{epoch_num}'
             evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data)
 
@@ -513,20 +530,20 @@ def evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dic
         epoch_num = int(description[6:])
         model_paths = (os.getenv('MODELS_DIR') + '/'\
                + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + f'/epoch_{epoch_num}.pth',
+               (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth',
                os.getenv('MODELS_DIR') + '/' \
                + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + f'/epoch_{epoch_num}.pth')
-    # prediction_data = full_cycle(test_name, dataset_name, images_dict, model_paths, description)
-    # plot_results(test_name, dataset_name, description)
+               (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth')
+    prediction_data = full_cycle(test_name, dataset_name, images_dict, model_paths, description)
+    plot_results(test_name, dataset_name, description)
     update_water_estimates(test_name, dataset_name, description)
     if dataset_name in ['deepaqua_test_dataset_no_nov', 'deepaqua_test_dataset']:
-        iterate(test_name, dataset_name, prediction_data, annotated_data_dict, description)
+        iterate(test_name, dataset_name, prediction_data, annotated_data_dict, description, split_by_date=True)
 
 
-start = time.time()
-for i in range(1):
-    main(f't_01_2_pow2_5ep_chained_run_0', dataset_name='bulk_export_Helge_sar', best_epoch=True, final_epoch=False, all_epochs=False)
-end = time.time()
-total_time = end - start
-print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+# start = time.time()
+# for i in range(5):
+# main(f'standard_baseline_lr5^-5_redlrplateau_corrected_final3_run_0', dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True, final_epoch=False)
+# end = time.time()
+# total_time = end - start
+# print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))

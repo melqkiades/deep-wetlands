@@ -98,9 +98,9 @@ def export_ndwi_mask_data(tiles, tif_file):
         print(f'Warning: There were {nan_tiles} tiles with NaN values.')
 
 
-def export_ndwi_mask_data_new(tiles, tif_file):
+def export_ndwi_mask_data_new(tiles, tif_file, date, area_name='Örebro län'):
     patch_size = int(os.getenv('PATCH_SIZE'))
-    export_folder = 'C:/Users/ioia4268/data/ndwi_masks_tiles/test_dataset_' + str(patch_size) + 'x' + str(patch_size)
+    export_folder = 'C:/Users/ioia4268/data/ndwi_masks_tiles/' + area_name + '_'+date + '_' + str(patch_size) + 'x' + str(patch_size)
     Path(export_folder).mkdir(parents=True, exist_ok=True)
 
     # with rio.open(tif_file) as src:
@@ -145,7 +145,7 @@ def export_ndwi_mask_data_new(tiles, tif_file):
             # out_image[out_image < minValue] = minValue
             # out_image = (out_image - minValue) / (maxValue - minValue)
 
-            # out_image[out_image == 0.5] = 0
+            out_image[out_image == 0.5] = 0
 
 
             # Get the metadata of the source image and update it
@@ -162,7 +162,8 @@ def export_ndwi_mask_data_new(tiles, tif_file):
             # Save the cropped image as a temporary TIFF file.
             temp_tif = export_folder + '/{}-ndwi_mask.tif'.format(name)
             with rasterio.open(temp_tif, "w", **out_meta) as dest:
-                dest.write((out_image/255.0).astype(np.float64))
+                # dest.write((out_image/255.0).astype(np.float64))
+                dest.write((out_image).astype(np.float64))
 
             # Save the cropped image as a temporary PNG file.
             temp_png = export_folder + '/{}-ndwi_mask.png'.format(name)
@@ -209,10 +210,17 @@ def full_cycle():
     #
     # tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
     # export_ndwi_mask_data(tiles, tif_file)
-    tif_files = glob.glob('C:/Users/ioia4268/data/ndwi_masks/test_dataset/*.tif')
+    # tif_files = glob.glob('C:/Users/ioia4268/data/ndwi_masks/test_dataset/*.tif')
+    # tif_files = ["C:/Users/ioia4268/data/ndwi_masks/Örebro län/Orebro lan_mosaic_2020-06-23_ndwi_mask.tif"]
+    tif_files = ["C:\\Users\\ioia4268\\data\\ndwi_masks\\abigail\\original_2024-07-19.tif"]
+    dataset = rio.open(tif_files[0])
+    band1 = dataset.read(1)
+    dataset = rio.open(tif_files[0], 'w')
+    dataset.write(np.flip(band1, 0), 1)
+    # tif_files = glob.glob("C:\\Users\\ioia4268\\data\\ndwi_masks - Copy\\Örebro län\\*\\*")[95:]
     for tif_file in tif_files:
-        tiles = geo_utils.get_tiles_batch(region_name, tif_file, patch_size)
-        export_ndwi_mask_data_new(tiles, tif_file)
+        tiles = geo_utils.get_tiles_batch('original', tif_file, patch_size)
+        export_ndwi_mask_data_new(tiles, tif_file, '2024-07-19', 'original')
 
 
 
@@ -224,8 +232,8 @@ def main():
     full_cycle()
 
 
-# start = time.time()
-# main()
-# end = time.time()
-# total_time = end - start
-# print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
+start = time.time()
+main()
+end = time.time()
+total_time = end - start
+print("%s: Total time = %f seconds" % (time.strftime("%Y/%m/%d-%H:%M:%S"), total_time))
