@@ -100,12 +100,12 @@ def generate_model_file_name(epochs=None):
 
 def create_tiles_file_pipeline(pre_2020):
     args = parser.parse_args()
-    data_dir = args.data_dir[1:-1]
+    data_dir = 'C:/Users/anubi/PycharmProjects/deep-wetlands-work/images/'
     patch_size = os.getenv('PATCH_SIZE')
 
     if pre_2020:
-        images_dir = data_dir + os.getenv('PRE_20_SAR_DIR') + '/'
-        masks_dir = data_dir + os.getenv('PRE_20_MASK_DIR') + '/'
+        images_dir = 'C:/Users/anubi/PycharmProjects/deep-wetlands-work/images/Orebro lan_mosaic_2018-07-04_64x64_sar/'
+        masks_dir = 'C:/Users/anubi/PycharmProjects/deep-wetlands-work/images/Orebro lan_mosaic_2018-07-04_64x64_ndwi_mask/'
         tiles_data_file = data_dir + os.getenv('PRE_20_TILES_FILE')
     else:
         images_dir = data_dir + os.getenv('POST_20_SAR_DIR') + '/'
@@ -129,10 +129,10 @@ def create_tiles_file_pipeline(pre_2020):
             else:
                 past_images2_dir = data_dir + os.getenv('POST_20_PAST_SAR2_DIR') + '/'
                 future_images2_dir = data_dir + os.getenv('POST_20_FUTURE_SAR2_DIR') + '/'
-    if '/ndwi_masks_tiles/' in masks_dir:
-        mask_type = 'ndwi'
-    elif '/otsu_masks_tiles/' in masks_dir:
-        mask_type = 'otsu'
+    # if '/ndwi_masks_tiles/' in masks_dir:
+    mask_type = 'ndwi'
+    # elif '/otsu_masks_tiles/' in masks_dir:
+    #     mask_type = 'otsu'
     print(images_dir, masks_dir)
     sar_files = [f for f in os.listdir(images_dir) if f.endswith('.tif')]
     mask_files = [f for f in os.listdir(masks_dir) if f.endswith('.tif')]

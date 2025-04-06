@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 from model import model_factory
-from wetlands import utils, viz_utils, map_wetlands, wandb_utils, noise_filters
+from wetlands import utils, viz_utils, map_wetlands, wandb_utils#, noise_filters
 
 
 def visualize_predicted_image(image, model, device, file_name, model_name):

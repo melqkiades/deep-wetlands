@@ -2,7 +2,7 @@ import time
 
 import wandb
 
-from wetlands import train_model
+from wetlands import train_model_pipeline
 
 
 def create_sweep():
