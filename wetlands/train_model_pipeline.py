@@ -164,7 +164,6 @@ class CFDDataset_in_memory(Dataset):
         return len(self.dataset)
 
 
-
 def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir, pre_2020):
     training_method = os.getenv('TRAINING_METHOD')
     if training_method == 'standard':
@@ -570,8 +569,6 @@ def evaluate_temporal_consistency(model, dataloader, criterion, scheduler, devic
         metrics['val_future_iou2'] = val_future_iou2
 
     return metrics
-
-
 
 
 def save_model(model, model_dir, model_file):

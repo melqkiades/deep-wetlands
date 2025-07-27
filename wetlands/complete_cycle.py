@@ -4,7 +4,7 @@ import time
 
 from dotenv import load_dotenv, dotenv_values
 
-from wetlands import train_model_pipeline, evaluate_performance_pipeline, aggregate_results, train_model_pipeline_orebro_eval
+from wetlands import train_model_pipeline, evaluate_performance_pipeline#, aggregate_results, train_model_pipeline_orebro_eval
 
 
 def main():
