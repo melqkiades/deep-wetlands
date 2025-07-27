@@ -1,11 +1,12 @@
 from torch.nn import CrossEntropyLoss, BCELoss
 
-from loss_functions.dice_loss import DiceLoss
+from loss_functions.dice_loss import DiceLoss, DiceLossSwin
 
 
 def create_loss_function(loss_function_name):
     loss_function_dict = {
         'dice': DiceLoss(),
+        'dice_swin': DiceLossSwin(2),
         'cross_entropy': CrossEntropyLoss(),
         'binary_cross_entropy': BCELoss()
     }

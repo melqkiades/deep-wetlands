@@ -8,9 +8,9 @@ from model.unet import Unet
 import segmentation_models_pytorch as smp
 
 
-def create_model(model_name):
-    unet_init_dim = int(os.getenv('UNET_INIT_DIM'))
-    unet_blocks = int(os.getenv('UNET_BLOCKS'))
+def create_model(config, model_name):
+    unet_init_dim = config['UNET_INIT_DIM']
+    unet_blocks = config['UNET_BLOCKS']
 
     models_dict = {
         'unet': Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks),

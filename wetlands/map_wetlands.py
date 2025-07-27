@@ -23,25 +23,25 @@ def visualize_predicted_image(image, model, device):
     height = image.shape[1] - image.shape[1] % patch_size
     pred_mask = predict_water_mask(image, model, device)
 
-    fig, ax = plt.subplots(figsize=(10, 10))
-    pred_mask = 1 - pred_mask
-    plt.imshow(pred_mask)
-    plt.show()
-    plt.clf()
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # pred_mask = 1 - pred_mask
+    # plt.imshow(pred_mask)
+    # plt.show()
+    # plt.clf()
     # plt.imsave('/tmp/water_estimation/20211016_map_wetlands_pred.png', 1 - pred_mask)
     # img = Image.fromarray(np.uint8((1 - pred_mask) * 255), 'L')
     # img.save('/tmp/water_estimation/20211016_map_wetlands_pred_bw.png')
-    fig, ax = plt.subplots(figsize=(10, 10))
-    plt.imshow(image[:width, :height], cmap='gray')
-    plt.show()
-    plt.clf()
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # plt.imshow(image[:width, :height], cmap='gray')
+    # plt.show()
+    # plt.clf()
     # plt.imsave('/tmp/water_estimation/20211016_map_wetlands_sar.png', image)
 
     return pred_mask
 
 
-def predict_water_mask(sar_image, model, device):
-    patch_size = int(os.getenv('PATCH_SIZE'))
+def predict_water_mask(config, sar_image, model, device):
+    patch_size = int(config['PATCH_SIZE'])
     width = sar_image.shape[0] - sar_image.shape[0] % patch_size
     height = sar_image.shape[1] - sar_image.shape[1] % patch_size
     pred_mask = np.zeros(tuple((width, height)))
@@ -54,8 +54,8 @@ def predict_water_mask(sar_image, model, device):
             sar_image_crop = torch.from_numpy(sar_image_crop.astype(np.float32)).to(device)[None, :]
 
             pred = model(sar_image_crop).cpu().detach().numpy()
-            pred = (pred).squeeze() * binary_image
-            pred = np.where(pred < 0.5, 0, 1)
+            pred = np.argmax(pred, axis=1).squeeze() * binary_image
+            # pred = np.where(pred < 0.5, 0, 1)
             pred_mask[w:w + patch_size, h:h + patch_size] = pred
 
     return pred_mask
@@ -90,7 +90,7 @@ def generate_raster_image(pred_mask, pred_file, tif_file, step_size):
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_title(label=os.getenv("MODEL_NAME"))
     plt.imshow(mask.read(1))
-    plt.show()
+    # plt.show()
     plt.clf()
 
 
@@ -115,7 +115,7 @@ def polygonize_raster_full(cwd, pred_file, shape_name, start_date):
     polygons = gpd.read_file(out_shape_file)
     ax = polygons.plot(figsize=(10, 10))
     ax.set_title(label=os.getenv("MODEL_NAME"))
-    plt.show()
+    # plt.show()
     plt.clf()
 
 

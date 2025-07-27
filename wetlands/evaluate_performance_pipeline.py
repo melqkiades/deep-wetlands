@@ -18,6 +18,11 @@ from pathlib import Path
 from skimage import io
 import time
 import csv
+from networks.vision_transformer import SwinUnet as ViT_seg
+from wetlands.config import get_config
+import argparse
+import torch
+import shutil
 
 
 def convert_area_name_to_color(area_name):
@@ -25,39 +30,38 @@ def convert_area_name_to_color(area_name):
     return area_name_to_color[area_name]
 
 
-def convert_annotated_data_to_png(dataset_name):
-    annotations_dir = os.getenv('ANNOTATED_DATA_DIR') + '/' + dataset_name
+def convert_annotated_data_to_png(config, dataset_name):
     band = 'vis-gray'
-    viz_utils.transform_ndwi_tiff_to_grayscale_png(annotations_dir, band)
+    viz_utils.transform_ndwi_tiff_to_grayscale_png(config, band, dataset_name)
 
 
-def rename_prediction_data(test_name, epoch_num, dataset_name):
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
-    performance_dir = os.getenv('EVALUATION_DIR') + f'/{dataset_name}/{test_name}'
-    if not os.path.isdir(performance_dir):
-        Path(performance_dir).mkdir(parents=True, exist_ok=True)
-    # Create subfolder to calculate the performance of the current model
-    model_performance_dir = f'{performance_dir}/epoch_{epoch_num}_performance/'
-    if not os.path.isdir(model_performance_dir):
-        Path(model_performance_dir).mkdir(parents=True, exist_ok=True)
-
-    # performance_dir = '/tmp/descending_otsu_flacksjon_exported_images/'
-    predictions_dir = f'{results_dir}/epoch_{epoch_num}_exported_images/'
-    [shutil.copyfile(predictions_dir + f, model_performance_dir + f[:-11] + f'pred_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
-
-
-def copy_annotated_images(test_name, epoch_num, dataset_name):
-    annotations_dir = os.getenv('ANNOTATED_DATA_DIR') + '/' + dataset_name
-    performance_dir = os.getenv('EVALUATION_DIR') + f'/{dataset_name}/{test_name}'
-    model_performance_dir = f'{performance_dir}/epoch_{epoch_num}_performance/'
-    annotated_files = [filename for filename in os.listdir(annotations_dir) if filename.endswith('.png')]
-    print('Annotated files:')
-    print(annotated_files)
-    [shutil.copyfile(annotations_dir +'/'+ f, model_performance_dir + f.lower()) for f in annotated_files]
+# def rename_prediction_data(test_name, epoch_num, dataset_name):
+#     results_dir = data_dir + 'results'+ f'/{dataset_name}/{test_name}'
+#     performance_dir = data_dir + 'performance_evaluator'+ f'/{dataset_name}/{test_name}'
+#     if not os.path.isdir(performance_dir):
+#         Path(performance_dir).mkdir(parents=True, exist_ok=True)
+#     # Create subfolder to calculate the performance of the current model
+#     model_performance_dir = f'{performance_dir}/epoch_{epoch_num}_performance/'
+#     if not os.path.isdir(model_performance_dir):
+#         Path(model_performance_dir).mkdir(parents=True, exist_ok=True)
+#
+#     predictions_dir = f'{results_dir}/epoch_{epoch_num}_exported_images/'
+#     [shutil.copyfile(predictions_dir + f, model_performance_dir + f[:-11] + f'pred_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
 
 
-def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, description, split_by_date=False):
+# def copy_annotated_images(test_name, epoch_num, dataset_name):
+#     annotations_dir = data_dir + 'manual_annotations/' + dataset_name
+#     performance_dir = data_dir + 'performance_evaluator'+ f'/{dataset_name}/{test_name}'
+#     model_performance_dir = f'{performance_dir}/epoch_{epoch_num}_performance/'
+#     annotated_files = [filename for filename in os.listdir(annotations_dir) if filename.endswith('.png')]
+#     print('Annotated files:')
+#     print(annotated_files)
+#     [shutil.copyfile(annotations_dir +'/'+ f, model_performance_dir + f.lower()) for f in annotated_files]
 
+
+def iterate(config, test_name, dataset_name, prediction_data_dict, annotated_data_dict, description, split_by_date=False):
+    data_dir = config['TEMP_DATA_DIR']
+    performance_evaluator_dir = config['EVALUATION_DIR']
     # 1. Iterate all the annotated images and extract the date
     ious = {}
     accuracies = {}
@@ -69,16 +73,16 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
                           'hornborgasjon':{'Pixel accuracy': 0.98, 'IOU':0.94, 'Precision':0.98, 'Recall':0.96, 'F1':0.97},
                           'svartadalen':{'Pixel accuracy': 0.97, 'IOU':0.88, 'Precision':0.98, 'Recall':0.9, 'F1':0.93}}
 
-    performance_dir = os.getenv('EVALUATION_DIR') + f'/{dataset_name}/{test_name}'
+    performance_dir = data_dir + performance_evaluator_dir + f'{dataset_name}/{test_name}/'
     if not os.path.isdir(performance_dir):
         Path(performance_dir).mkdir(parents=True, exist_ok=True)
-    model_performance_dir = f'{performance_dir}/{description}_performance/'
+    model_performance_dir = f'{performance_dir}{description}_performance/'
     if not os.path.isdir(model_performance_dir):
         Path(model_performance_dir).mkdir(parents=True, exist_ok=True)
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
-    model_results_dir = f'{results_dir}/{description}_exported_images'
-    aucs_dataframe = pandas.read_csv(f'{results_dir}/{description}_areas_under_curve.csv')
-    annotations_dir = os.getenv('ANNOTATED_DATA_DIR') + '/' + dataset_name + '/'
+    results_dir = data_dir + config['RESULTS_DIR'] + f'{dataset_name}/{test_name}/'
+    model_results_dir = f'{results_dir}{description}_exported_images/'
+    aucs_dataframe = pandas.read_csv(f'{results_dir}{description}_areas_under_curve.csv')
+    annotations_dir = data_dir + config['ANNOTATED_DATA_DIR'] + f'{dataset_name}/'
     annotated_files = [filename for filename in os.listdir(annotations_dir) if 'annotated_vh' in filename and filename.endswith('.png')]
     print('Annotated files:')
     print(annotated_files)
@@ -109,7 +113,7 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
 
         # Locate the prediction file
         # prediction_file = model_results_dir + '/' + annotated_file.replace('annotated_vh', 'mosaic').replace('.png', f'_sar_VH_pred_bw.png')
-        prediction_file = model_results_dir + '/' + annotated_file.lower().replace('annotated_vh', 'mosaic').replace('.png',
+        prediction_file = model_results_dir+ annotated_file.lower().replace('annotated_vh', 'mosaic').replace('.png',
                                                                                                              f'_sar_VH.tif')
 
         # Check if the prediction file exists
@@ -134,7 +138,7 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
         accuracy = (annotated_data_dict[annotated_file] == prediction_data).sum() / (annotated_data_dict[annotated_file].shape[0] * annotated_data_dict[annotated_file].shape[1])
         accuracies[area_name].append(accuracy)
     image_results_df = pandas.DataFrame({'filename': annotated_files, 'iou': ious_list})
-    image_results_df.to_csv(f'{model_performance_dir}/filename_ious.csv')
+    image_results_df.to_csv(f'{model_performance_dir}filename_ious.csv')
     for area_name in ious.keys():
         print('\n\nAREA: ', area_name)
         result = semantic_segmentation_evaluator.eval_semantic_segmentation(predictions[area_name], annotations[area_name])
@@ -190,9 +194,9 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
 
         # Export metrics to CSV
         if not split_by_date:
-            metrics_file = f'{performance_dir}/{description}_performance.csv'
+            metrics_file = f'{performance_dir}{description}_performance.csv'
         else:
-            metrics_file = f'{performance_dir}/{description}_performance_split.csv'
+            metrics_file = f'{performance_dir}{description}_performance_split.csv'
         with open(metrics_file, 'a') as f:
             f.write("%s,%s\n" % ('Area', area_name))
             for key in metrics.keys():
@@ -219,9 +223,7 @@ def iterate(test_name, dataset_name, prediction_data_dict, annotated_data_dict, 
         plt.ylabel("Real values")
 
 
-def visualize_predicted_image(image, model, device, file_name, test_name, dataset_name, description):
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
-
+def visualize_predicted_image(config, image, model, device, file_name, test_name, dataset_name, description):
     if test_name == 'otsu':
         pred_mask = otsu_threshold(image)
     elif test_name == 'otsu_gaussian':
@@ -232,7 +234,7 @@ def visualize_predicted_image(image, model, device, file_name, test_name, datase
     elif test_name == 'thresholding_2020':
         pred_mask = threshold_method(image, 0.36236236236236236)
     else:
-        pred_mask = map_wetlands.predict_water_mask(image, model, device)
+        pred_mask = map_wetlands.predict_water_mask(config, image, model, device)
 
     unique, counts = np.unique(pred_mask, return_counts=True)
     results = dict(zip(unique, counts))
@@ -242,7 +244,7 @@ def visualize_predicted_image(image, model, device, file_name, test_name, datase
     results['Satellite'] = satellite
     results['File_name'] = file_name
 
-    images_dir = f'{results_dir}/{description}_exported_images/'
+    images_dir = config['TEMP_DATA_DIR'] + config['RESULTS_DIR'] + f'{dataset_name}/{test_name}/{description}_exported_images/'
 
     if not os.path.isdir(images_dir):
         os.mkdir(images_dir)
@@ -261,10 +263,10 @@ def visualize_predicted_image(image, model, device, file_name, test_name, datase
     return results, pred_mask
 
 
-def get_prediction_image(tiff_image, tiff_file, model, device, test_name, dataset_name, description):
+def get_prediction_image(config, tiff_image, tiff_file, model, device, test_name, dataset_name, description):
 
     file_name = os.path.basename(tiff_file).split('.')[0]
-    results, prediction_image = visualize_predicted_image(tiff_image, model, device, file_name, test_name, dataset_name, description)
+    results, prediction_image = visualize_predicted_image(config, tiff_image, model, device, file_name, test_name, dataset_name, description)
     return results, prediction_image
 
 
@@ -302,21 +304,22 @@ def threshold_method(image, threshold):
     return water_prediction
 
 
-def plot_results(test_name, dataset_name, description):
-
-    charts_dir = os.getenv('CHARTS_DIR') + f'/{dataset_name}/{test_name}'
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
-    results_file = f'{results_dir}/{description}_water_estimates.csv'
+def plot_results(config, test_name, dataset_name, description):
+    data_dir = config['TEMP_DATA_DIR']
+    charts_dir = data_dir + config['CHARTS_DIR'] + f'{dataset_name}/{test_name}/'
+    results_dir = data_dir + config['RESULTS_DIR'] + f'{dataset_name}/{test_name}/'
+    results_file = f'{results_dir}{description}_water_estimates.csv'
     data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date'], index_col=["Date"],  parse_dates=["Date"])
     data_frame.plot(title=test_name)
-    plt.savefig(f'{charts_dir}/{description}_water_estimates.png')
+    plt.savefig(f'{charts_dir}{description}_water_estimates.png')
 
 
-def update_water_estimates(test_name, dataset_name, description):
-    charts_dir = os.getenv('CHARTS_DIR') + f'/{dataset_name}/{test_name}'
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
+def update_water_estimates(config, test_name, dataset_name, description):
+    data_dir = config['TEMP_DATA_DIR']
+    charts_dir = data_dir + config['CHARTS_DIR'] + f'{dataset_name}/{test_name}/'
+    results_dir = data_dir + config['RESULTS_DIR'] + f'{dataset_name}/{test_name}/'
+    results_file = f'{results_dir}{description}_water_estimates.csv'
 
-    results_file = f'{results_dir}/{description}_water_estimates.csv'
     data_frame = pandas.read_csv(results_file, usecols=['1.0', 'Date', 'File_name'],  parse_dates=["Date"])
     print(data_frame.size)
     print(data_frame.columns.values)
@@ -332,14 +335,14 @@ def update_water_estimates(test_name, dataset_name, description):
         date = row['Date']
         if area_name not in ious:
             ious[area_name] = [0.]
-            prev_prediction = io.imread(f'{results_dir}/{description}_exported_images/'+ file_name)
+            prev_prediction = io.imread(f'{results_dir}{description}_exported_images/'+ file_name)
             days[area_name] = [0.]
             prev_date = date
             ious_skip_winter[area_name] = [0.]
             dates_skip_winter[area_name] = [date]
         else:
             days_passed = (date - prev_date).days
-            prediction = io.imread(f'{results_dir}/{description}_exported_images/'+ file_name)
+            prediction = io.imread(f'{results_dir}{description}_exported_images/'+ file_name)
             if days_passed < 60:
                 temp_iou = calculate_intersection_over_union(prev_prediction, prediction)
                 ious[area_name].append(temp_iou)
@@ -367,7 +370,7 @@ def update_water_estimates(test_name, dataset_name, description):
     print(data_frame.columns.values)
 
     data_frame.plot(x='Date', y='1.0', kind='scatter', title=f'{test_name} {description} [{dataset_name}]', c='color', s=0.7**2)
-    plt.savefig(f'{charts_dir}/{description}_scatter_new_water_estimates_filtered.png')
+    plt.savefig(f'{charts_dir}{description}_scatter_new_water_estimates_filtered.png')
     plt.clf()
     areas_under_curve = {}
     for area_name in ious.keys():
@@ -388,22 +391,37 @@ def update_water_estimates(test_name, dataset_name, description):
         plt.legend()
         plt.gcf().autofmt_xdate()
         plt.title(f'{description}_{area_name} auc: {str(round(area_under_curve,2))}')
-        plt.savefig(f'{charts_dir}/{description}_ious_{area_name}_new_water_estimates_filtered.png')
+        plt.savefig(f'{charts_dir}{description}_ious_{area_name}_new_water_estimates_filtered.png')
         plt.clf()
     auc_dataframe = pandas.DataFrame.from_dict(areas_under_curve)
-    auc_dataframe.to_csv(f'{results_dir}/{description}_areas_under_curve.csv')
-    data_frame.to_csv(f'{results_dir}/{description}_new_water_estimates_filtered.csv')
+    auc_dataframe.to_csv(f'{results_dir}{description}_areas_under_curve.csv')
+    data_frame.to_csv(f'{results_dir}{description}_new_water_estimates_filtered.csv')
 
 
-def full_cycle(test_name, dataset_name, images_dict, model_paths, description):
-    load_dotenv()
+def full_cycle(test_name, dataset_name, images_dict, model_paths, description, config, patch_size):
 
     device = utils.get_device()
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
+    results_dir = config['TEMP_DATA_DIR'] + config['RESULTS_DIR'] + f'{dataset_name}/{test_name}/'
     if test_name not in ['otsu', 'otsu_gaussian', 'thresholding_2018', 'thresholding_2020']:
-        cnn_type = os.getenv('CNN_TYPE')
-        model_2018 = model_factory.load_model(cnn_type, model_paths[0], device)
-        model_2020 = model_factory.load_model(cnn_type, model_paths[1], device)
+        model_2018 = ViT_seg(img_size=patch_size, num_classes=2, patch_size=config['TRANSFORMER_PATCH_SIZE'], input_channels=1,
+                    embed_dim=config['EMBED_DIM'], depths=config['DEPTHS'], num_heads=config['NUM_HEADS'],
+                    window_size=config['WINDOW_SIZE'], mlp_ratio=config['MLP_RATIO'], qkv_bias=config['QKV_BIAS'],
+                    qk_scale=config['QK_SKALE'], drop_rate=config['DROP_RATE'], drop_path_rate=config['DROP_PATH_RATE'],
+                    ape=config['APE'], patch_norm=config['PATCH_NORM'], use_checkpoint=config['USE_CHECKPOINT']).cuda()
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        pretrained_dict = torch.load(model_paths[0], map_location=device)
+        pretrained_dict = {k[17:]: v for k, v in pretrained_dict.items()}
+        model_2018.swin_unet.load_state_dict(pretrained_dict, strict=False)
+        model_2020 = ViT_seg(img_size=patch_size, num_classes=2, patch_size=config['TRANSFORMER_PATCH_SIZE'], input_channels=1,
+                    embed_dim=config['EMBED_DIM'], depths=config['DEPTHS'], num_heads=config['NUM_HEADS'],
+                    window_size=config['WINDOW_SIZE'], mlp_ratio=config['MLP_RATIO'], qkv_bias=config['QKV_BIAS'],
+                    qk_scale=config['QK_SKALE'], drop_rate=config['DROP_RATE'], drop_path_rate=config['DROP_PATH_RATE'],
+                    ape=config['APE'], patch_norm=config['PATCH_NORM'], use_checkpoint=config['USE_CHECKPOINT']).cuda()
+        pretrained_dict = torch.load(model_paths[1], map_location=device)
+        pretrained_dict = {k[17:]: v for k, v in pretrained_dict.items()}
+        model_2020.swin_unet.load_state_dict(pretrained_dict, strict=False)
+        # model_2018 = model_factory.load_model(cnn_type, model_paths[0], device)
+        # model_2020 = model_factory.load_model(cnn_type, model_paths[1], device)
     else:
         model_2018 = None
         model_2020 = None
@@ -411,14 +429,14 @@ def full_cycle(test_name, dataset_name, images_dict, model_paths, description):
     results_list = []
     prediction_data = {}
 
-    for tiff_file in tqdm.tqdm(images_dict) :
+    for tiff_file in tqdm.tqdm(images_dict):
         if not tiff_file.endswith('.tif'):
             continue
         year = int(tiff_file.split('_')[2].split('-')[0])
         if year in [2018, 2019]:
-            results, prediction_image = get_prediction_image(images_dict[tiff_file], tiff_file, model_2018, device, test_name, dataset_name, description)
+            results, prediction_image = get_prediction_image(config, images_dict[tiff_file], tiff_file, model_2018, device, test_name, dataset_name, description)
         elif year in [2020, 2021, 2022]:
-            results, prediction_image = get_prediction_image(images_dict[tiff_file], tiff_file, model_2020, device, test_name, dataset_name, description)
+            results, prediction_image = get_prediction_image(config, images_dict[tiff_file], tiff_file, model_2020, device, test_name, dataset_name, description)
 
         results_list.append(results)
         prediction_data[tiff_file] = prediction_image
@@ -426,25 +444,27 @@ def full_cycle(test_name, dataset_name, images_dict, model_paths, description):
     data_frame = pandas.DataFrame(results_list)
     data_frame['Date'] = data_frame['Date'].apply(pandas.to_datetime).dt.date
     print(data_frame.head())
-    data_frame.to_csv(f'{results_dir}/{description}_water_estimates.csv')
+    data_frame.to_csv(f'{results_dir}{description}_water_estimates.csv')
 
     return prediction_data
 
 
-def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True, all_epochs=False, final_epoch=False):
-    load_dotenv()
-
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
-    if not os.path.isdir(results_dir):
-        Path(results_dir).mkdir(parents=True, exist_ok=True)
-    charts_dir = os.getenv('CHARTS_DIR') + f'/{dataset_name}/{test_name}'
-    if not os.path.isdir(charts_dir):
-        Path(charts_dir).mkdir(parents=True, exist_ok=True)
+def main(config, test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True, all_epochs=False, final_epoch=False):
+    data_dir = config['TEMP_DATA_DIR']
+    outputs_dir = config['OUTPUTS_DIR']
+    results_dir = config['RESULTS_DIR']
+    performance_evaluator_dir = config['EVALUATION_DIR']
+    models_dir = outputs_dir + config['MODELS_DIR']
+    manual_annotations_dir = config['ANNOTATED_DATA_DIR']
+    if not os.path.isdir(data_dir + results_dir+ f'{dataset_name}/{test_name}/'):
+        Path(data_dir + results_dir+ f'{dataset_name}/{test_name}/').mkdir(parents=True, exist_ok=True)
+    charts_dir = config['CHARTS_DIR']
+    if not os.path.isdir(data_dir + charts_dir + f'{dataset_name}/{test_name}/'):
+        Path(data_dir + charts_dir + f'{dataset_name}/{test_name}/').mkdir(parents=True, exist_ok=True)
     if dataset_name in ['deepaqua_test_dataset_no_nov', 'deepaqua_test_dataset']:
-        convert_annotated_data_to_png(dataset_name)
-    patch_size = int(os.getenv('PATCH_SIZE'))
-
-    tiff_dir = 'C:/Users/ioia4268/data/sar/' + dataset_name
+        convert_annotated_data_to_png(config, dataset_name)
+    patch_size = config['PATCH_SIZE']
+    tiff_dir = data_dir + config['SAR_DIR'] + dataset_name
 
     if not os.path.exists(tiff_dir):
         raise FileNotFoundError(f'The folder containing the TIFF files does not exist: {tiff_dir}')
@@ -472,6 +492,7 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
         # else:
             # minValue = minValue_2020
             # maxValue = maxValue_2020
+        print(tiff_dir + '/' + tiff_file)
         image = viz_utils.load_image(tiff_dir + '/' + tiff_file, ignore_nan=True)#, min_value=minValue, max_value=maxValue)
         if image is None:
             incomplete_images += 1
@@ -481,7 +502,7 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
     print(f'There were a total of {incomplete_images} incomplete images')
     annotated_data_dict = {}
     if dataset_name in ['deepaqua_test_dataset_no_nov', 'deepaqua_test_dataset']:
-        annotations_dir = os.getenv('ANNOTATED_DATA_DIR') + '/' + dataset_name + '/'
+        annotations_dir = data_dir + manual_annotations_dir + dataset_name + '/'
         annotated_files = [filename for filename in os.listdir(annotations_dir) if 'annotated_vh' in filename and filename.endswith('.png')]
         for annotated_file in annotated_files:
             # Open the annotated file
@@ -493,52 +514,74 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
             annotated_data = np.array(annotated_image)
             array_min, array_max = np.nanmin(annotated_data), np.nanmax(annotated_data)
             annotated_data_dict[annotated_file] = ((annotated_data - array_min) / (array_max - array_min)).astype(int)
-    model_dir = os.getenv('MODELS_DIR')
-    model_data = pandas.read_csv(model_dir + '/model_info.csv')
+    model_data = pandas.read_csv(models_dir + 'model_info.csv')
     if best_epoch:
         description = 'best_epoch'
-        evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data)
+        evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data, config, patch_size)
     if final_epoch:
         description = 'final_epoch'
-        evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data)
-    if all_epochs:
-        final_epoch_num = np.minimum(model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2018-07-04')]['final_epoch'].values[-1],
-                                     model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2020-06-23')]['final_epoch'].values[-1])
-        for epoch_num in range(1, final_epoch_num + 1):
-            description = f'epoch_{epoch_num}'
-            evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data)
+        evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data, config, patch_size)
+    # if all_epochs:
+    #     final_epoch_num = np.minimum(model_data.loc[(model_data['test_name'] == test_name) &
+    #            (model_data['training_date'] == '2018-07-04')]['final_epoch'].values[-1],
+    #                                  model_data.loc[(model_data['test_name'] == test_name) &
+    #            (model_data['training_date'] == '2020-06-23')]['final_epoch'].values[-1])
+    #     for epoch_num in range(1, final_epoch_num + 1):
+    #         description = f'epoch_{epoch_num}'
+    #         evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data, config, patch_size)
+    print(f'{outputs_dir}{performance_evaluator_dir}{test_name}.zip', f'{data_dir}{performance_evaluator_dir}')
+    shutil.make_archive(f'{outputs_dir}{performance_evaluator_dir}{test_name}', 'zip',
+                         f'{data_dir}{performance_evaluator_dir}')
+    shutil.unpack_archive(f'{outputs_dir}{performance_evaluator_dir}{test_name}.zip',f'{outputs_dir}{performance_evaluator_dir}')
+    os.remove(f'{outputs_dir}{performance_evaluator_dir}{test_name}.zip')
+    print(f'{outputs_dir}{results_dir}{test_name}.zip', f'{data_dir}{results_dir}')
+    shutil.make_archive(f'{outputs_dir}{results_dir}{test_name}', 'zip',
+                        data_dir + f'{results_dir}')
+    shutil.unpack_archive(
+        f'{outputs_dir}{results_dir}{test_name}.zip',
+        f'{outputs_dir}{results_dir}')
+    os.remove(f'{outputs_dir}{results_dir}{test_name}.zip')
+    print(f'{outputs_dir}{charts_dir}{test_name}.zip', f'{data_dir}{charts_dir}')
+    shutil.make_archive(f'{outputs_dir}{charts_dir}{test_name}', 'zip',
+                        data_dir + f'{charts_dir}')
+    shutil.unpack_archive(
+        f'{outputs_dir}{charts_dir}{test_name}.zip',
+        f'{outputs_dir}{charts_dir}')
+    os.remove(f'{outputs_dir}{charts_dir}{test_name}.zip')
+    print('Eval finished')
 
 
-def evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data):
+def evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data, config, patch_size):
+    models_dir = config['OUTPUTS_DIR'] + config['MODELS_DIR']
+    training_date_2018 = config['PRE_20_TRAIN_DATE']
+    training_date_2020 = config['POST_20_TRAIN_DATE']
     if description == 'best_epoch':
-        model_paths = (os.getenv('MODELS_DIR') + '/'\
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + '/best_model.pth',
-               os.getenv('MODELS_DIR') + '/' \
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + '/best_model.pth')
+        model_paths = (models_dir +\
+               model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2018_run_')) &
+               (model_data['training_date'] == training_date_2018)]['run_name'].values[-1] + '/best_model.pth',
+               models_dir +\
+               model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2020_run_')) &
+               (model_data['training_date'] == training_date_2020)]['run_name'].values[-1] + '/best_model.pth')
     elif description == 'final_epoch':
-        model_paths = (os.getenv('MODELS_DIR') + '/'\
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + '/final_epoch.pth',
-               os.getenv('MODELS_DIR') + '/' \
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + '/final_epoch.pth')
+        model_paths = (models_dir +\
+               model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2018_run_')) &
+               (model_data['training_date'] == training_date_2018)]['run_name'].values[-1] + '/final_epoch.pth',
+               models_dir +\
+               model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2020_run_')) &
+               (model_data['training_date'] == training_date_2020)]['run_name'].values[-1] + '/final_epoch.pth')
     elif description[:6] == 'epoch_':
         epoch_num = int(description[6:])
-        model_paths = (os.getenv('MODELS_DIR') + '/'\
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth',
-               os.getenv('MODELS_DIR') + '/' \
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth')
-    prediction_data = full_cycle(test_name, dataset_name, images_dict, model_paths, description)
-    plot_results(test_name, dataset_name, description)
-    update_water_estimates(test_name, dataset_name, description)
+        model_paths = (models_dir +\
+               model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2018_run_')) &
+               (model_data['training_date'] == training_date_2018)]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth',
+               models_dir +\
+               model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2020_run_')) &
+               (model_data['training_date'] == training_date_2020)]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth')
+    prediction_data = full_cycle(test_name, dataset_name, images_dict, model_paths, description, config, patch_size)
+    plot_results(config, test_name, dataset_name, description)
+    update_water_estimates(config, test_name, dataset_name, description)
     if dataset_name in ['deepaqua_test_dataset_no_nov', 'deepaqua_test_dataset']:
-        iterate(test_name, dataset_name, prediction_data, annotated_data_dict, description, split_by_date=True)
+        iterate(config, test_name, dataset_name, prediction_data, annotated_data_dict, description, split_by_date=True)
 
 
 # start = time.time()

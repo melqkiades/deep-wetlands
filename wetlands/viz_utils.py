@@ -99,7 +99,7 @@ def show_crop(image, shape, title=''):
         plt.show()
 
 
-def convert_ndwi_tiff_to_png(tiff_file, out_file, band):
+def convert_ndwi_tiff_to_png(config, tiff_file, out_file, band):
 
     tiff_image = rio.open(tiff_file)
     image_array = tiff_image.read(tiff_image.descriptions.index(band) + 1)
@@ -111,7 +111,7 @@ def convert_ndwi_tiff_to_png(tiff_file, out_file, band):
     img = Image.fromarray(numpy.uint8(image_array * 255), 'L')
 
     # Crop the annotated image to fit predicted image size
-    patch_size = int(os.getenv('PATCH_SIZE'))
+    patch_size = int(config['PATCH_SIZE'])
     width, height = img.size
     width = width - width % patch_size
     height = height - height % patch_size
@@ -149,21 +149,21 @@ def convert_rgb_tiff_to_png(tiff_file, out_file):
     im.save(out_file)
 
 
-def transform_ndwi_tiff_to_grayscale_png(tiff_dir, band):
+def transform_ndwi_tiff_to_grayscale_png(config, band, dataset_name):
+    annotations_dir = config['TEMP_DATA_DIR'] + config['ANNOTATED_DATA_DIR'] + dataset_name
+    if not os.path.exists(annotations_dir):
+        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {annotations_dir}')
 
-    if not os.path.exists(tiff_dir):
-        raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {tiff_dir}')
-
-    filenames = next(os.walk(tiff_dir), (None, None, []))[2]  # [] if no file
+    filenames = next(os.walk(annotations_dir), (None, None, []))[2]  # [] if no file
     print(filenames)
 
     for tiff_file in filenames:
         if not tiff_file.endswith('.tif'):
             continue
-        tiff_path = f'{tiff_dir}/{tiff_file}'
+        tiff_path = f'{annotations_dir}/{tiff_file}'
         out_file = tiff_path.replace('.tif', '.png')
         if not os.path.exists(out_file):
-            convert_ndwi_tiff_to_png(tiff_path, out_file, band)
+            convert_ndwi_tiff_to_png(config, tiff_path, out_file, band)
 
 
 def transform_rgb_tiff_to_png(tiff_dir):

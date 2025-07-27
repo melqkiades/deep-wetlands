@@ -175,7 +175,7 @@ def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir, pre_20
     training_method = os.getenv('TRAINING_METHOD')
     if training_method == 'standard':
         datasets = {
-            'train': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir),
+            'train': CFDDataset_in_memory(data[data.split == 'train'], images_dir, masks_dir),
             'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir)
         }
     elif training_method == 'temporal_consistency':
@@ -209,6 +209,8 @@ def get_dataloaders(data, batch_size, num_workers, images_dir, masks_dir, pre_20
                 'test': CFDDataset_in_memory(data[data.split == 'test'], images_dir, masks_dir, past_images_dir,
                                    future_images_dir, past_images2_dir, future_images2_dir)
             }
+    print('Num train data:', len(datasets['train']))
+    print('Num val data:', len(datasets['test']))
     dataloaders = {
         'train': DataLoader(
           datasets['train'],
@@ -241,8 +243,8 @@ def train(model, dataloader, criterion, optimizer, device):
         optimizer.zero_grad()
 
         with torch.set_grad_enabled(True):
-            output = model(input)
-            loss = criterion(output, target)
+            output = model(input)# + 0.5
+            loss = criterion(output, torch.squeeze(target, 1), softmax=True)
 
             loss.backward()
             optimizer.step()
@@ -272,8 +274,8 @@ def evaluate(model, dataloader, scheduler, criterion, device):
         target = target.to(device)
 
         with torch.set_grad_enabled(False):
-            output = model(input)
-            loss = criterion(output, target)
+            output = model(input)# + 0.5
+            loss = criterion(output, torch.squeeze(target, 1), softmax=True)
             iou = intersection_over_union(output, target)
             losses.append(loss.cpu().detach().numpy())
             ious.append(iou.cpu().detach().numpy())
@@ -622,117 +624,38 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 
 def full_cycle(test_name, pre_2020=True):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--root_path', type=str,
-                        default='D:/Synapse', help='root dir for data')
-    parser.add_argument('--dataset', type=str,
-                        default='Synapse', help='experiment_name')
-    parser.add_argument('--list_dir', type=str,
-                        default='./lists/lists_Synapse', help='list dir')
-    parser.add_argument('--num_classes', type=int,
-                        default=9, help='output channel of network')
-    parser.add_argument('--output_dir', type=str, help='output dir')
-    parser.add_argument('--max_iterations', type=int,
-                        default=30000, help='maximum epoch number to train')
-    parser.add_argument('--max_epochs', type=int,
-                        default=150, help='maximum epoch number to train')
-    parser.add_argument('--batch_size', type=int,
-                        default=24, help='batch_size per gpu')
-    parser.add_argument('--n_gpu', type=int, default=1, help='total gpu')
-    parser.add_argument('--deterministic', type=int, default=1,
-                        help='whether use deterministic training')
-    parser.add_argument('--base_lr', type=float, default=0.01,
-                        help='segmentation network learning rate')
-    parser.add_argument('--img_size', type=int,
-                        default=64, help='input patch size of network input')
-    parser.add_argument('--seed', type=int,
-                        default=1234, help='random seed')
-    parser.add_argument('--cfg', type=str, metavar="FILE", help='path to config file', default='./configs/swin_tiny_patch4_window7_224_lite.yaml')
-    parser.add_argument(
-        "--opts",
-        help="Modify config options by adding 'KEY VALUE' pairs. ",
-        default=None,
-        nargs='+',
-    )
-    parser.add_argument('--zip', action='store_true', help='use zipped dataset instead of folder dataset')
-    parser.add_argument('--cache-mode', type=str, default='part', choices=['no', 'full', 'part'],
-                        help='no: no cache, '
-                             'full: cache all data, '
-                             'part: sharding the dataset into nonoverlapping pieces and only cache one piece')
-    parser.add_argument('--resume', help='resume from checkpoint')
-    parser.add_argument('--accumulation-steps', type=int, help="gradient accumulation steps")
-    parser.add_argument('--use-checkpoint', action='store_true',
-                        help="whether to use gradient checkpointing to save memory")
-    parser.add_argument('--amp-opt-level', type=str, default='O1', choices=['O0', 'O1', 'O2'],
-                        help='mixed precision opt level, if O0, no amp is used')
-    parser.add_argument('--tag', help='tag of experiment')
-    parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
-    parser.add_argument('--throughput', action='store_true', help='Test throughput only')
-    # parser.add_argument("--dataset_name", default="datasets")
-    parser.add_argument("--n_class", default=4, type=int)
-    parser.add_argument("--num_workers", default=8, type=int)
-    parser.add_argument("--eval_interval", default=1, type=int)
-    parser.add_argument("--data_dir", type=ascii)
-    args = parser.parse_args()
-    if args.dataset == "Synapse":
-        args.root_path = os.path.join(args.root_path, "train_npz")
-    config_transformer = get_config(args)
-    # model = ViT_seg(config_transformer, img_size=224, num_classes=2).cuda()
-    # model.load_from(config_transformer)
+    # config_transformer = get_config(args)
     # data_dir = args.data_dir[1:-1]
 
-    config = dotenv_values()
-    # Convert int values to int
-    for key in ['EPOCHS', 'PATCH_SIZE', 'BATCH_SIZE', 'NUM_WORKERS', 'EARLY_STOP_NUM_EPOCHS', 'TEMPORAL_CONSISTENCY_START_EPOCH',
-                'REDUCE_LR_PLATEAU_PATIENCE']:
-        config[key] = int(config[key])
-    # Convert float values to float
-    for key in ['LEARNING_RATE']:
-        config[key] = float(config[key])
-    for key in ['SAVE_MODEL_ON_ALL_EPOCHS', 'SAVE_MODEL_ON_LAST_EPOCH', 'REDUCE_LR_PLATEAU']:
-        if config[key] == "TRUE":
-            config[key] = True
-        else:
-            config[key] = False
+    config = utils_local.create_config()
 
     training_method = config['TRAINING_METHOD']
-    if config['RANDOM_SEED']!='NONE':
-        config['RANDOM_SEED'] = int(config['RANDOM_SEED'])
-
     # Configure the wandb run
     # wandb.login(key='1c089ca5602990a00ab2f51946d18aa4487c42dc')
     wandb_config = config.copy()
-    del wandb_config['AGGREGATE_FUNCTION']
-    del wandb_config['ANNOTATED_DATA_DIR']
-    del wandb_config['CHARTS_DIR']
-    del wandb_config['CLOUDY_PIXEL_PERCENTAGE']
-    del wandb_config['COUNTRY_CODE']
-    del wandb_config['CWD_DIR']
-    del wandb_config['DATA_DIR']
-    del wandb_config['EVALUATION_DIR']
-    del wandb_config['GEOJSON_FILE']
-    del wandb_config['GEOJSON_FOLDER']
-    del wandb_config['HOME_DIR']
-    del wandb_config['MODEL_FILE']
-    del wandb_config['MODEL_FILE_EVALUATE_2018']
-    del wandb_config['MODEL_FILE_EVALUATE_2020']
-    del wandb_config['MODELS_DIR']
-    del wandb_config['NDWI_DIR']
-    del wandb_config['NDWI_INPUT']
-    del wandb_config['ORBIT_PASS']
-    del wandb_config['OTSU_GAUSSIAN_KERNEL_SIZE']
-    del wandb_config['PREDICTIONS_FILE']
-    del wandb_config['REGION_ADMIN_LEVEL']
-    del wandb_config['REGION_NAME']
-    del wandb_config['RESULTS_DIR']
-    del wandb_config['SAR_POLARIZATION']
-    del wandb_config['STUDY_AREA']
-    del wandb_config['TRAIN_CWD_DIR']
-    del wandb_config['WATER_INDEX']
-    del wandb_config['BASE_FILE_NAME']
-    wandb.init(project="deepaqua", config=wandb_config)
-    # wandb.init(project="sweeps", entity="deep-wetlands", config=config)
-    config.update(wandb.config)
+    # del wandb_config['AGGREGATE_FUNCTION']
+    # del wandb_config['ANNOTATED_DATA_DIR']
+    # del wandb_config['CHARTS_DIR']
+    # del wandb_config['CLOUDY_PIXEL_PERCENTAGE']
+    # del wandb_config['COUNTRY_CODE']
+    # del wandb_config['DATA_DIR']
+    # del wandb_config['EVALUATION_DIR']
+    # del wandb_config['GEOJSON_FILE']
+    # del wandb_config['MODELS_DIR']
+    # del wandb_config['NDWI_INPUT']
+    # del wandb_config['ORBIT_PASS']
+    # del wandb_config['OTSU_GAUSSIAN_KERNEL_SIZE']
+    # del wandb_config['REGION_ADMIN_LEVEL']
+    # del wandb_config['REGION_NAME']
+    # del wandb_config['RESULTS_DIR']
+    # del wandb_config['OUTPUTS_DIR']
+    # del wandb_config['NDWI_MASK_TILES_DIR']
+    # del wandb_config['SAR_TILES_DIR']
+    # del wandb_config['SAR_DIR']
+    # del wandb_config['SAR_POLARIZATION']
+    # del wandb_config['STUDY_AREA']
+    # del wandb_config['WATER_INDEX']
+    wandb.init(project="deepaqua_test", config=wandb_config, name='local_test')
     print(json.dumps(config, indent=4))
     run_name = wandb.run.name
     wandb.run.define_metric("val_iou", summary="max")
@@ -751,10 +674,9 @@ def full_cycle(test_name, pre_2020=True):
         seed = int(seed)
     batch_size = int(os.getenv('BATCH_SIZE'))
     num_workers = int(os.getenv('NUM_WORKERS'))
-    model_dir = os.getenv('MODELS_DIR')
-    loss_function_name = os.getenv('LOSS_FUNCTION')
+    model_dir = 'D:/work/models'
+    # loss_function_name = os.getenv('LOSS_FUNCTION')
     cnn_type = os.getenv('CNN_TYPE')
-    band = os.getenv('SAR_POLARIZATION')
     patch_size = int(os.getenv('PATCH_SIZE'))
     if os.getenv('SAVE_MODEL_ON_ALL_EPOCHS') == 'True':
         save_model_on_all_epochs = True
@@ -783,42 +705,38 @@ def full_cycle(test_name, pre_2020=True):
 
     tiles_data = utils_local.create_tiles_file_pipeline(pre_2020)
     if pre_2020:
-        images_dir = 'C:/Users/anubi/PycharmProjects/deep-wetlands-work/images/Orebro lan_mosaic_2018-07-04_64x64_sar/'
-        masks_dir = 'C:/Users/anubi/PycharmProjects/deep-wetlands-work/images/Orebro lan_mosaic_2018-07-04_64x64_ndwi_mask/'
+        images_dir = f'D:/work/sar_tiles/Örebro län_2018-07-04_{patch_size}x{patch_size}_test/'
+        masks_dir = f'D:/work/ndwi_masks_tiles/Örebro län_2018-07-04_{patch_size}x{patch_size}_test/'
         # tiles_data_file = data_dir + os.getenv('PRE_20_TILES_FILE')
         training_date = os.getenv('PRE_20_TRAIN_DATE')
     else:
-        images_dir = data_dir + os.getenv('POST_20_SAR_DIR') + '/'
-        masks_dir = data_dir + os.getenv('POST_20_MASK_DIR') + '/'
-        tiles_data_file = data_dir + os.getenv('POST_20_TILES_FILE')
+        images_dir = f'D:/work/sar_tiles/Örebro län_2020-06-23_{patch_size}x{patch_size}_test/'
+        masks_dir = f'D:/work/ndwi_masks_tiles/Örebro län_2020-06-23_{patch_size}x{patch_size}_test/'
+        # tiles_data_file = data_dir + os.getenv('POST_20_TILES_FILE')
         training_date = os.getenv('POST_20_TRAIN_DATE')
-    # images_dir = data_dir + os.getenv('SAR_DIR') + '/'
-    # masks_dir = data_dir + os.getenv('NDWI_MASK_DIR') + '/'
-    # tiles_data_file = data_dir + os.getenv('TILES_FILE')
 
     tiff_file = 'C:/Users/anubi/PycharmProjects/deep-wetlands-work/images/bulk_export_svartadalen_sar/S1A_IW_GRDH_1SDV_20221222T052344_20221222T052409_046440_059046_B673.tif'
     tiff_image = viz_utils.load_image(tiff_file,  ignore_nan=True, skimage_read=False)
-    # tiff_image2 = viz_utils.load_image(tiff_path, ignore_nan=True)
 
     # Check is GPU is enabled
     device = utils_local.get_device()
 
-    # tiles_data = pd.read_csv(tiles_data_file)#.groupby('split').sample(frac=0.05)
-    # load_time_start = time.time()
     dataloaders = get_dataloaders(tiles_data, batch_size, num_workers, images_dir, masks_dir, pre_2020)
     # print('Data load time:'+ str(time.time()-load_time_start))
     # sys.exit()
 
-    # model = Unet(in_channels=1, out_channels=1, init_dim=unet_init_dim, num_blocks=unet_blocks)
-    # model = model_factory.create_model(cnn_type)
-    model = ViT_seg(config_transformer, img_size=patch_size, num_classes=2).cuda()
-    # model.load_from(config_transformer)
+    model = ViT_seg(img_size=patch_size, num_classes=2, patch_size=config['TRANSFORMER_PATCH_SIZE'], input_channels=1,
+                    embed_dim=config['EMBED_DIM'], depths=config['DEPTHS'], num_heads=config['NUM_HEADS'],
+                    window_size=config['WINDOW_SIZE'], mlp_ratio=config['MLP_RATIO'], qkv_bias=config['QKV_BIAS'],
+                    qk_scale=config['QK_SKALE'], drop_rate=config['DROP_RATE'], drop_path_rate=config['DROP_PATH_RATE'],
+                    ape=config['APE'], patch_norm=config['PATCH_NORM'], use_checkpoint=config['USE_CHECKPOINT']).cuda()
     print(model)
+    # model.load_from(config, 'C:/Users/anubi/PycharmProjects/deep-wetlands-cephyr/wetlands/pretrained_ckpt/swin_tiny_patch4_window7_224.pth')
     print('Model parameters', sum(param.numel() for param in model.parameters()))
     # criterion = DiceLoss()
     # criterion = torch.nn.CrossEntropyLoss()
     # criterion = torch.nn.BCELoss()
-    criterion = loss_function_factory.create_loss_function(loss_function_name)
+    criterion = loss_function_factory.create_loss_function('dice_swin')
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     if reduce_lr_plateau:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=reduce_lr_plateau_patience, factor=0.5)
@@ -872,21 +790,21 @@ def full_cycle(test_name, pre_2020=True):
             1: "water",
         }
 
-        pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
-
-        full_mask_img = wandb.Image(tiff_image, masks={
-            "predictions": {
-                "mask_data": pred_mask,
-                "class_labels": class_labels
-            },
-        }, caption=["Full water detection", "fwd", "fwdm"])
+        # pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
+        #
+        # full_mask_img = wandb.Image(tiff_image, masks={
+        #     "predictions": {
+        #         "mask_data": pred_mask,
+        #         "class_labels": class_labels
+        #     },
+        # }, caption=["Full water detection", "fwd", "fwdm"])
 
         # Count values of full_pred array
 
-        full_pred = wandb.Image(pred_mask, caption="Full prediction")
+        # full_pred = wandb.Image(pred_mask, caption="Full prediction")
 
         metrics = {
-            **train_metrics, **val_metrics, 'full_pred': full_pred, 'full_mask': full_mask_img
+            **train_metrics, **val_metrics,# 'full_pred': full_pred, 'full_mask': full_mask_img
         }
 
         print('Train loss: {}, Val loss: {}'.format(metrics['train_loss'], metrics['val_loss']))
@@ -911,14 +829,26 @@ def full_cycle(test_name, pre_2020=True):
             break
     if save_model_on_last_epoch:
         save_model(model, os.path.join(model_dir, run_name), f'final_epoch.pth')
-    with open(model_dir + '/model_info.csv', 'a', newline='') as csvfile:
-        spamwriter = csv.writer(csvfile)
-        spamwriter.writerow([run_name, test_name, str(training_date), training_method, num_dates, temporal_consistency_weight, standard_training_weight, temporal_consistency_power,
-                             temporal_consistency_start_epoch, n_epochs, learning_rate, early_stop_num_epochs, best_epoch, max_score, epoch, mask_type])
+    models_info = pd.read_csv('C:/Users/anubi/PycharmProjects/deep-wetlands-cephyr/model_info.csv')
+    new_info = pd.DataFrame.from_dict({'run_name':[run_name], 'test_name':[test_name], 'training_date': [str(training_date)],
+                             'training_method': [training_method], 'num_dates':[num_dates],
+                             'temporal_consistency_weight': [temporal_consistency_weight],
+                             'standard_training_weight': [standard_training_weight],
+                             'temporal_consistency_power':[temporal_consistency_power],
+                             'temporal_consistency_start_epoch': [temporal_consistency_start_epoch],
+                             'max_epochs':[n_epochs], 'learning_rate':[learning_rate],
+                             'early_stop_num_epochs':[early_stop_num_epochs], 'best_epoch':[best_epoch],
+                             'max_val_iou':[ max_score], 'final_epoch':[epoch], 'mask_type':[mask_type]})
+    updated_info = pd.concat([models_info, new_info], join='outer')
+    updated_info.to_csv('C:/Users/anubi/PycharmProjects/deep-wetlands-cephyr/model_info.csv')
+    # with open(model_dir + '/model_info.csv', 'a', newline='') as csvfile:
+    #     spamwriter = csv.writer(csvfile)
+    #     spamwriter.writerow([run_name, test_name, str(training_date), training_method, num_dates, temporal_consistency_weight, standard_training_weight, temporal_consistency_power,
+    #                          temporal_consistency_start_epoch, n_epochs, learning_rate, early_stop_num_epochs, best_epoch, max_score, epoch, mask_type])
     wandb.finish()
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
     # print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
-    pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
+    # pred_mask = map_wetlands.predict_water_mask(tiff_image, model, device)
 
     plt.imshow(pred_mask)
     # plt.show()
@@ -928,8 +858,10 @@ def full_cycle(test_name, pre_2020=True):
 def intersection_over_union(y_pred, y_true):
 
     smooth = 1e-6
-    y_pred = y_pred[:, 0].view(-1) > 0.5
-    y_true = y_true[:, 0].view(-1) > 0.5
+    # y_pred = y_pred[:, 0].view(-1) > 0.5
+    # y_true = y_true[:, 0].view(-1) > 0.5
+    y_pred = torch.argmax(y_pred, dim=1)
+    y_true = torch.squeeze(y_true.to(torch.int))
     intersection = (y_pred & y_true).sum() + smooth
     union = (y_pred | y_true).sum() + smooth
     iou = intersection / union
@@ -955,7 +887,7 @@ def load_and_test():
 def main():
     if __name__ == '__main__':
         load_dotenv()
-        config = dotenv_values()
+        # config = dotenv_values()
         # print(json.dumps(config, indent=4))
 
         full_cycle()

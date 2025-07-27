@@ -1,12 +1,12 @@
 import os
 import time
 
-import geetools
+# import geetools
 from dotenv import load_dotenv
 import geopandas as gpd
 import ee
 import eeconvert as eec
-from unidecode import unidecode
+# from unidecode import unidecode
 
 from wetlands import utils
 
@@ -645,14 +645,14 @@ def main():
     # utils.download_country_boundaries(country_code, region_admin_level, file_name)
     region = get_region()
     # region = get_area_of_interest('small_sweden')
-    # download_ndwi_mask(region)
+    download_ndwi_mask(region)
     # download_image('ndwi_binary', region)
     # download_image('mndwi_binary', region)
-    download_image('awei_binary', region)
+    # download_image('awei_binary', region)
     # download_image('hrwi_binary', region)
     # download_image('dynamic_world_water_binary', region)
 
-    # download_sar(region)
+    download_sar(region)
     # download_sar_vv_plus_vh(region)
 
     # bulk_export_sar(study_area)

@@ -25,7 +25,7 @@ _C.DATA.DATA_PATH = ''
 # Dataset name
 _C.DATA.DATASET = 'imagenet'
 # Input image size
-_C.DATA.IMG_SIZE = 64
+_C.DATA.IMG_SIZE = 224
 # Interpolation to resize image (random, bilinear, bicubic)
 _C.DATA.INTERPOLATION = 'bicubic'
 # Use zipped dataset instead of folder dataset

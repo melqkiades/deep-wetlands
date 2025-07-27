@@ -1,7 +1,7 @@
 import json
 import os
 import time
-
+from pathlib import Path
 import numpy
 import numpy as np
 import rasterio
@@ -15,9 +15,10 @@ from tqdm import tqdm
 from wetlands import utils, geo_utils
 
 
-def export_sar_data(tiles, tif_file):
-    export_folder = os.getenv('SAR_DIR')
-    patch_size = int(os.getenv('PATCH_SIZE'))
+def export_sar_data(config, tiles, tif_file, patch_size, date, area_name='Orebro lan'):
+    export_folder = config['DATA_DIR'] + 'sar_tiles/' + area_name + '_'+date + '_' + str(patch_size) + 'x' + str(patch_size)
+    Path(export_folder).mkdir(parents=True, exist_ok=True)
+    # patch_size = int(os.getenv('PATCH_SIZE'))
 
     with rio.open(tif_file) as src:
         dataset_array = src.read()
@@ -82,19 +83,19 @@ def export_sar_data(tiles, tif_file):
         print(f'Warning: There were {nan_tiles} tiles with NaN values.')
 
 
-def full_cycle():
-    file_name = os.getenv('GEOJSON_FILE')
-    region_name = os.getenv('REGION_NAME')
-    tif_file = os.getenv('SAR_TIFF_FILE')
-    country_code = os.getenv('COUNTRY_CODE')
-    region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
-    patch_size = int(os.getenv("PATCH_SIZE"))
+def full_cycle(config):
+    # file_name = os.getenv('GEOJSON_FILE')
+    # region_name = os.getenv('REGION_NAME')
+    # tif_file = os.getenv('SAR_TIFF_FILE')
+    # country_code = os.getenv('COUNTRY_CODE')
+    # region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
+    patch_size = config['PATCH_SIZE']
 
-    utils.download_country_boundaries(country_code, region_admin_level, file_name)
-    geoboundary = utils.get_region_boundaries(region_name, file_name)
-
-    tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
-    export_sar_data(tiles, tif_file)
+    # utils.download_country_boundaries(country_code, region_admin_level, file_name)
+    # geoboundary = utils.get_region_boundaries(region_name, file_name)
+    tif_file = '/mimer/NOBACKUP/groups/deep-wetlands-data-2025/data/sar/Orebro lan/Orebro_lan_2020-05-30_sar_VH.tif'
+    tiles = geo_utils.get_tiles_batch('Orebro lan', tif_file, patch_size)
+    export_sar_data(config, tiles, tif_file, patch_size, '2020-05-30', 'Orebro lan')
 
 
 def main():
