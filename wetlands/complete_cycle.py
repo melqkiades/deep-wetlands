@@ -36,8 +36,8 @@ def update_name(config, test_name):
 
 def main():
     if __name__ == '__main__':
-        slack_hook = "https://hooks.slack.com/services/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"
-        slack_logger = SlackExceptionLogger(slack_hook, "#alvis-messages")
+        slack_hook = "##"
+        slack_logger = SlackExceptionLogger(slack_hook, "###")
         try:
             args = parser.parse_args()
             temp_data_dir = args.data_dir[1:-1]

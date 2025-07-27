@@ -677,7 +677,7 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
 
 def full_cycle(config, test_name, pre_2020=True):
     # Configure the wandb run
-    # wandb.login(key='1c089ca5602990a00ab2f51946d18aa4487c42dc')
+    # wandb.login(key='###')
     wandb_config = config.copy()
     del wandb_config['AGGREGATE_FUNCTION']
     del wandb_config['ANNOTATED_DATA_DIR']
