@@ -190,7 +190,7 @@ def full_cycle():
     #              "C:/Users/ioia4268/data/ndwi_masks/Örebro län/Orebro lan_mosaic_2020-06-23_ndwi_mask.tif"]
     area_name = "Orebro_lan"
     for tif_file in tif_files:
-        tiles = geo_utils.get_tiles_batch(area_name, tif_file, patch_size)
+        tiles = geo_utils.get_tiles(area_name, tif_file, patch_size)
         export_ndwi_mask_data_new(tiles, tif_file, tif_file.split("_")[-2], patch_size, area_name)
 
 

@@ -414,7 +414,7 @@ def full_cycle(test_name, dataset_name, images_dict, model_paths, description):
     results_list = []
     prediction_data = {}
 
-    for tiff_file in tqdm.tqdm(images_dict) :
+    for tiff_file in tqdm.tqdm(images_dict):
         if not tiff_file.endswith('.tif'):
             continue
         year = int(tiff_file.split('_')[-3].split('-')[0])
