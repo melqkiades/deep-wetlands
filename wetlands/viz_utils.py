@@ -180,7 +180,7 @@ def transform_rgb_tiff_to_png(tiff_dir):
         convert_rgb_tiff_to_png(tiff_path, out_file)
 
 
-def load_image(dir_path, ignore_nan=False, skimage_read=True, min_value=None, max_value=None):
+def load_image(dir_path, skip_nan=False, skimage_read=True, min_value=None, max_value=None, nan_to_zero=False):
     if skimage_read:
         numpy_image = io.imread(dir_path)
     else:
@@ -190,7 +190,7 @@ def load_image(dir_path, ignore_nan=False, skimage_read=True, min_value=None, ma
 
         numpy_image = tiff_image.read(band_index+1)
     # If the image is incomplete and has NaN values we ignore it
-    if ignore_nan and numpy.isnan(numpy_image).any():
+    if skip_nan and numpy.isnan(numpy_image).any():
         return None
 
     if min_value is None:
@@ -202,11 +202,14 @@ def load_image(dir_path, ignore_nan=False, skimage_read=True, min_value=None, ma
 
     array_min, array_max = numpy.nanmin(numpy_image), numpy.nanmax(numpy_image)
     normalized_array = (numpy_image - array_min) / (array_max - array_min)
-    normalized_array[numpy.isnan(normalized_array)] = 0
+    if nan_to_zero:
+        normalized_array[numpy.isnan(normalized_array)] = 0
+    else:
+        normalized_array[numpy.isnan(normalized_array)] = -1
 
     return normalized_array
 
-def load_image_simple(dir_path, band, ignore_nan=False):
+def load_image_simple(dir_path, band, skip_nan=False):
 
     tiff_image = rio.open(dir_path)
     band_index = tiff_image.descriptions.index(band)
@@ -214,7 +217,7 @@ def load_image_simple(dir_path, band, ignore_nan=False):
     numpy_image = tiff_image.read(band_index+1)
 
     # If the image is incomplete and has NaN values we ignore it
-    if ignore_nan and numpy.isnan(numpy_image).any():
+    if skip_nan and numpy.isnan(numpy_image).any():
         return None
 
     min_value = numpy.nanpercentile(numpy_image, 1)

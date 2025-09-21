@@ -93,8 +93,8 @@ def export_sar_data(tiles, tif_file):
         print(f'Warning: There were {nan_tiles} tiles with NaN values.')
 
 
-def export_sar_data_new(tiles, tif_file, minValue, maxValue, date, area_name='Örebro län', indexes=None):
-    patch_size = int(os.getenv('PATCH_SIZE'))
+def export_sar_data_new(tiles, tif_file, minValue, maxValue, date, patch_size, area_name='Örebro län', indexes=None):
+    # patch_size = int(os.getenv('PATCH_SIZE'))
     export_folder = 'C:\\Users\\ioia4268\\data\\sar_tiles_test\\' +area_name + '_' + date + '_' + str(patch_size) + 'x' + str(patch_size)
     Path(export_folder).mkdir(parents=True, exist_ok=True)
     # minValue = np.inf
@@ -184,38 +184,39 @@ def full_cycle():
 
     country_code = os.getenv('COUNTRY_CODE')
     region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
-    patch_size = int(os.getenv("PATCH_SIZE"))
+    # patch_size = int(os.getenv("PATCH_SIZE"))
+    patch_size = 64
 
-    utils.download_country_boundaries(country_code, region_admin_level, file_name)
-    geoboundary = utils.get_region_boundaries(region_name, file_name)
+    # utils.download_country_boundaries(country_code, region_admin_level, file_name)
+    # geoboundary = utils.get_region_boundaries(region_name, file_name)
 
     # tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
     # export_sar_data(tiles, tif_file)
     fig, ax = plt.subplots(2, 4)
-    with rio.open('C:\\Users\\ioia4268\\data\\sar\\Örebro län\\Orebro lan_mosaic_2018-07-04_sar_VH.tif') as src:
-        dataset_array = src.read()
-        minValue_2018 = numpy.nanpercentile(dataset_array, 0.5)
-        maxValue_2018 = numpy.nanpercentile(dataset_array, 99.5)
-        minValue_20181 = numpy.nanpercentile(dataset_array, 1)
-        maxValue_20181 = numpy.nanpercentile(dataset_array, 99)
-        minminValue_2018 = numpy.nanmin(dataset_array)
-        maxmaxValue_2018 = numpy.nanmax(dataset_array)
-        ax[0, 0].hist(dataset_array.flatten(), bins=200, density=True)
-        ax[0, 1].hist(numpy.clip(dataset_array.flatten(), minValue_20181, maxValue_20181), bins=200, density=True)
-        ax[0, 2].hist(numpy.clip(dataset_array.flatten(), minValue_2018, maxValue_2018), bins=200, density=True)
-    with rio.open('C:\\Users\\ioia4268\\data\\sar\\Örebro län\\Orebro lan_mosaic_2020-06-23_sar_VH.tif') as src:
-        dataset_array2 = src.read()
-        minValue_2020 = numpy.nanpercentile(dataset_array2, 0.5)
-        maxValue_2020 = numpy.nanpercentile(dataset_array2, 99.5)
-        minValue_20201 = numpy.nanpercentile(dataset_array2, 1)
-        maxValue_20201 = numpy.nanpercentile(dataset_array2, 99)
-        minminValue_2020 = numpy.nanmin(dataset_array2)
-        maxmaxValue_2020 = numpy.nanmax(dataset_array2)
-        ax[1, 0].hist(dataset_array2.flatten(), bins=200, density=True)
-        ax[1, 1].hist(numpy.clip(dataset_array2.flatten(), minValue_20201, maxValue_20201), bins=200, density=True)
-        ax[1, 2].hist(numpy.clip(dataset_array2.flatten(), minValue_2020, maxValue_2020), bins=200, density=True)
-        ax[1, 3].hist(numpy.clip(dataset_array2.flatten(), minValue_2018, maxValue_2018), bins=200, density=True)
-    plt.show()
+    # with rio.open('C:\\Users\\ioia4268\\data\\sar\\Örebro län\\Orebro lan_mosaic_2018-07-04_sar_VH.tif') as src:
+    #     dataset_array = src.read()
+    #     minValue_2018 = numpy.nanpercentile(dataset_array, 0.5)
+    #     maxValue_2018 = numpy.nanpercentile(dataset_array, 99.5)
+    #     minValue_20181 = numpy.nanpercentile(dataset_array, 1)
+    #     maxValue_20181 = numpy.nanpercentile(dataset_array, 99)
+    #     minminValue_2018 = numpy.nanmin(dataset_array)
+    #     maxmaxValue_2018 = numpy.nanmax(dataset_array)
+    #     # ax[0, 0].hist(dataset_array.flatten(), bins=200, density=True)
+    #     # ax[0, 1].hist(numpy.clip(dataset_array.flatten(), minValue_20181, maxValue_20181), bins=200, density=True)
+    #     # ax[0, 2].hist(numpy.clip(dataset_array.flatten(), minValue_2018, maxValue_2018), bins=200, density=True)
+    # with rio.open('C:\\Users\\ioia4268\\data\\sar\\Örebro län\\Orebro lan_mosaic_2020-06-23_sar_VH.tif') as src:
+    #     dataset_array2 = src.read()
+    #     minValue_2020 = numpy.nanpercentile(dataset_array2, 0.5)
+    #     maxValue_2020 = numpy.nanpercentile(dataset_array2, 99.5)
+    #     minValue_20201 = numpy.nanpercentile(dataset_array2, 1)
+    #     maxValue_20201 = numpy.nanpercentile(dataset_array2, 99)
+    #     minminValue_2020 = numpy.nanmin(dataset_array2)
+    #     maxmaxValue_2020 = numpy.nanmax(dataset_array2)
+    #     ax[1, 0].hist(dataset_array2.flatten(), bins=200, density=True)
+    #     ax[1, 1].hist(numpy.clip(dataset_array2.flatten(), minValue_20201, maxValue_20201), bins=200, density=True)
+    #     ax[1, 2].hist(numpy.clip(dataset_array2.flatten(), minValue_2020, maxValue_2020), bins=200, density=True)
+    #     ax[1, 3].hist(numpy.clip(dataset_array2.flatten(), minValue_2018, maxValue_2018), bins=200, density=True)
+    # plt.show()
     # tif_files = glob.glob('C:\\Users\\ioia4268\\data\\sar\\orebroiancopy\\*')
     # sar_files = [filename for filename in glob.glob('C:\\Users\\ioia4268\\data\\sar\\orebroiancopy\\*') if
     #              os.path.getsize(filename) > 600000000]
@@ -252,12 +253,12 @@ def full_cycle():
     for tif_file in tif_files:
         tiles = geo_utils.get_tiles_batch(area_name, tif_file, patch_size)
         if '2018' in tif_file or '2019' in tif_file:
-            minValue = minValue_2018
-            maxValue = maxValue_2018
+            minValue = 0
+            maxValue = 1
         else:
-            minValue = minValue_2020
-            maxValue = maxValue_2020
-        # export_sar_data_new(tiles, tif_file, minValue, maxValue, tif_file.split("_")[-3])
+            minValue = 0
+            maxValue = 1
+        export_sar_data_new(tiles, tif_file, minValue, maxValue, tif_file.split("_")[-3], patch_size)
 
 
 def main():
