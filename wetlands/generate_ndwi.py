@@ -98,9 +98,8 @@ def export_ndwi_mask_data(tiles, tif_file):
         print(f'Warning: There were {nan_tiles} tiles with NaN values.')
 
 
-def export_ndwi_mask_data_new(tiles, tif_file, date, area_name='Örebro län'):
-    patch_size = int(os.getenv('PATCH_SIZE'))
-    export_folder = 'C:/Users/ioia4268/data/ndwi_masks_tiles/' + area_name + '_'+date + '_' + str(patch_size) + 'x' + str(patch_size)
+def export_ndwi_mask_data_new(tiles, tif_file, date, patch_size, area_name='Örebro län'):
+    export_folder = 'C:/Users/ioia4268/data/ndpi_masks_tiles/' + area_name + '_'+date + '_' + str(patch_size) + 'x' + str(patch_size)
     Path(export_folder).mkdir(parents=True, exist_ok=True)
 
     # with rio.open(tif_file) as src:
@@ -145,7 +144,7 @@ def export_ndwi_mask_data_new(tiles, tif_file, date, area_name='Örebro län'):
             # out_image[out_image < minValue] = minValue
             # out_image = (out_image - minValue) / (maxValue - minValue)
 
-            out_image[out_image == 0.5] = 0
+            ####### out_image[out_image == 0.5] = 0
 
 
             # Get the metadata of the source image and update it
@@ -160,67 +159,39 @@ def export_ndwi_mask_data_new(tiles, tif_file, date, area_name='Örebro län'):
             })
 
             # Save the cropped image as a temporary TIFF file.
-            temp_tif = export_folder + '/{}-ndwi_mask.tif'.format(name)
+            # temp_tif = export_folder + '/{}-ndwi_mask.tif'.format(name)
+            temp_tif = export_folder + '/{}-ndpi.tif'.format(name)
             with rasterio.open(temp_tif, "w", **out_meta) as dest:
                 # dest.write((out_image/255.0).astype(np.float64))
                 dest.write((out_image).astype(np.float64))
 
             # Save the cropped image as a temporary PNG file.
-            temp_png = export_folder + '/{}-ndwi_mask.png'.format(name)
-
-            # Get the color map by name:
-            # cm = plt.get_cmap('viridis')
-            cm = plt.get_cmap(ListedColormap(["black", "cyan"]))
-
-            # Apply the colormap like a function to any array:
-            colored_image = cm(out_image[0])
-
-            # Obtain a 4-channel image (R,G,B,A) in float [0, 1]
-            # But we want to convert to RGB in uint8 and save it:
-            Image.fromarray(colored_image[:, :, :3].astype(np.uint8)).save(temp_png)
+            # temp_png = export_folder + '/{}-ndwi_mask.png'.format(name)
+            #
+            # # Get the color map by name:
+            # # cm = plt.get_cmap('viridis')
+            # cm = plt.get_cmap(ListedColormap(["black", "cyan"]))
+            #
+            # # Apply the colormap like a function to any array:
+            # colored_image = cm(out_image[0])
+            #
+            # # Obtain a 4-channel image (R,G,B,A) in float [0, 1]
+            # # But we want to convert to RGB in uint8 and save it:
+            # Image.fromarray(colored_image[:, :, :3].astype(np.uint8)).save(temp_png)
 
     if nan_tiles > 0:
         print(f'Warning: There were {nan_tiles} tiles with NaN values.')
 
 
 def full_cycle():
-    file_name = os.getenv('GEOJSON_FILE')
-    region_name = os.getenv('REGION_NAME')
-    tif_file = os.getenv('NDWI_TIFF_FILE')
-    country_code = os.getenv('COUNTRY_CODE')
-    region_admin_level = os.getenv("REGION_ADMIN_LEVEL")
-    patch_size = int(os.getenv("PATCH_SIZE"))
-
-    # fig, axs = plt.subplots(1, 2)
-
-    # with rio.open("C:\\Users\\ioia4268\\Downloads\\Orebro lan_mosaic_2020-06-23_ndwi_mask_cloud_10.tif") as src:
-    #     dataset_array = src.read()
-    #     a = axs[0].imshow(np.nan_to_num(dataset_array[0]))
-    #     plt.colorbar(a, ax=axs[0])
-    #     # plt.show()
-    #
-    # with rio.open('C:\\Users\\ioia4268\\PycharmProjects\\deep-wetlands\\data\\ndwi_masks\\Orebro lan_mosaic_2018-07-04_ndwi_mask.tif') as src:
-    #     dataset_array2 = src.read()
-    #     b = axs[1].imshow(np.nan_to_num(dataset_array2[0]))
-    #     plt.colorbar(b, ax=axs[1])
-    #     plt.show()
-
-    # utils.download_country_boundaries(country_code, region_admin_level, file_name)
-    # geoboundary = utils.get_region_boundaries(region_name, file_name)
-    #
-    # tiles = geo_utils.get_tiles(region_name, tif_file, geoboundary, patch_size)
-    # export_ndwi_mask_data(tiles, tif_file)
-    # tif_files = glob.glob('C:/Users/ioia4268/data/ndwi_masks/test_dataset/*.tif')
-    # tif_files = ["C:/Users/ioia4268/data/ndwi_masks/Örebro län/Orebro lan_mosaic_2020-06-23_ndwi_mask.tif"]
-    tif_files = ["C:\\Users\\ioia4268\\data\\ndwi_masks\\abigail\\original_2024-07-19.tif"]
-    dataset = rio.open(tif_files[0])
-    band1 = dataset.read(1)
-    dataset = rio.open(tif_files[0], 'w')
-    dataset.write(np.flip(band1, 0), 1)
-    # tif_files = glob.glob("C:\\Users\\ioia4268\\data\\ndwi_masks - Copy\\Örebro län\\*\\*")[95:]
+    patch_size = 64
+    tif_files = glob.glob("C:/Users/ioia4268/data/sar_ndpi/Orebro_lan/*")
+    # tif_files = ["C:/Users/ioia4268/data/ndwi_masks/Örebro län/Orebro lan_mosaic_2018-07-04_ndwi_mask.tif",
+    #              "C:/Users/ioia4268/data/ndwi_masks/Örebro län/Orebro lan_mosaic_2020-06-23_ndwi_mask.tif"]
+    area_name = "Orebro_lan"
     for tif_file in tif_files:
-        tiles = geo_utils.get_tiles_batch('original', tif_file, patch_size)
-        export_ndwi_mask_data_new(tiles, tif_file, '2024-07-19', 'original')
+        tiles = geo_utils.get_tiles_batch(area_name, tif_file, patch_size)
+        export_ndwi_mask_data_new(tiles, tif_file, tif_file.split("_")[-2], patch_size, area_name)
 
 
 

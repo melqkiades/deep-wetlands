@@ -18,6 +18,7 @@ from skimage import io
 import csv
 
 rng = np.random.default_rng()
+torch.set_float32_matmul_precision("high")
 
 class CFDDataset(Dataset):
     def __init__(self, dataset, images_dir, masks_dir, past_images_dir=None, future_images_dir=None,
@@ -239,8 +240,8 @@ def train(model, dataloader, criterion, optimizer, device):
         # if step >= 1 + 1 + 3:
         #     break
         # step += 1
-        input = input.to(device)
-        target = target.to(device)
+        input = input.to(device, non_blocking=True)
+        target = target.to(device, non_blocking=True)
 
         optimizer.zero_grad()
 
@@ -272,8 +273,8 @@ def evaluate(model, dataloader, scheduler, criterion, device):
     ious = []
 
     for input, target in tqdm(dataloader, total=len(dataloader)):
-        input = input.to(device)
-        target = target.to(device)
+        input = input.to(device, non_blocking=True)
+        target = target.to(device, non_blocking=True)
 
         with torch.set_grad_enabled(False):
             output = model(input)
@@ -319,10 +320,10 @@ def train_temporal_consistency(model, dataloader, criterion, optimizer, device, 
 
     if temporal_consistency_num_dates == 1:
         for input, target, past_sar, future_sar in tqdm(dataloader, total=len(dataloader)):
-            input = input.to(device)
-            target = target.to(device)
-            past_sar = past_sar.to(device)
-            future_sar = future_sar.to(device)
+            input = input.to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
+            past_sar = past_sar.to(device, non_blocking=True)
+            future_sar = future_sar.to(device, non_blocking=True)
 
             optimizer.zero_grad()
 
@@ -356,12 +357,12 @@ def train_temporal_consistency(model, dataloader, criterion, optimizer, device, 
                 future_ious.append(future_iou.cpu().detach().numpy())
     elif temporal_consistency_num_dates == 2:
         for input, target, past_sar, future_sar, past_sar2, future_sar2 in tqdm(dataloader, total=len(dataloader)):
-            input = input.to(device)
-            target = target.to(device)
-            past_sar = past_sar.to(device)
-            future_sar = future_sar.to(device)
-            past_sar2 = past_sar2.to(device)
-            future_sar2 = future_sar2.to(device)
+            input = input.to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
+            past_sar = past_sar.to(device, non_blocking=True)
+            future_sar = future_sar.to(device, non_blocking=True)
+            past_sar2 = past_sar2.to(device, non_blocking=True)
+            future_sar2 = future_sar2.to(device, non_blocking=True)
 
             optimizer.zero_grad()
 
@@ -459,10 +460,10 @@ def evaluate_temporal_consistency(model, dataloader, criterion, scheduler, devic
 
     if temporal_consistency_num_dates == 1:
         for input, target, past_sar, future_sar in tqdm(dataloader, total=len(dataloader)):
-            input = input.to(device)
-            target = target.to(device)
-            past_sar = past_sar.to(device)
-            future_sar = future_sar.to(device)
+            input = input.to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
+            past_sar = past_sar.to(device, non_blocking=True)
+            future_sar = future_sar.to(device, non_blocking=True)
 
             with torch.set_grad_enabled(False):
                 output = model(input)
@@ -491,12 +492,12 @@ def evaluate_temporal_consistency(model, dataloader, criterion, scheduler, devic
                 future_ious.append(future_iou.cpu().detach().numpy())
     elif temporal_consistency_num_dates == 2:
         for input, target, past_sar, future_sar, past_sar2, future_sar2 in tqdm(dataloader, total=len(dataloader)):
-            input = input.to(device)
-            target = target.to(device)
-            past_sar = past_sar.to(device)
-            future_sar = future_sar.to(device)
-            past_sar2 = past_sar2.to(device)
-            future_sar2 = future_sar2.to(device)
+            input = input.to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
+            past_sar = past_sar.to(device, non_blocking=True)
+            future_sar = future_sar.to(device, non_blocking=True)
+            past_sar2 = past_sar2.to(device, non_blocking=True)
+            future_sar2 = future_sar2.to(device, non_blocking=True)
 
             with torch.set_grad_enabled(False):
                 output = model(input)
@@ -599,7 +600,7 @@ def evaluate_single_image(model, tiles_data, images_dir, ndwi_masks_dir, device)
     # sar_image = sar_image.transpose((2, 1, 0))[None, :]
     batch_sar_image = sar_image[None, :]
     print(batch_sar_image.shape)
-    batch_sar_image = torch.from_numpy(batch_sar_image.astype(np.float32)).to(device)
+    batch_sar_image = torch.from_numpy(batch_sar_image.astype(np.float32)).to(device, non_blocking=True)
     pred_image = model(batch_sar_image).cpu().detach().numpy()
     # pred_image = pred_image.squeeze().transpose((1, 0))
     pred_image = pred_image.squeeze()
@@ -634,30 +635,21 @@ def full_cycle(test_name, pre_2020=True):
         config['RANDOM_SEED'] = int(config['RANDOM_SEED'])
 
     # Configure the wandb run
-    # wandb.login(key='1c089ca5602990a00ab2f51946d18aa4487c42dc')
+    wandb.login(key='7f266f9a3115da69acae90e8eb024ea65859454e')
     wandb_config = config.copy()
     del wandb_config['AGGREGATE_FUNCTION']
     del wandb_config['ANNOTATED_DATA_DIR']
-    del wandb_config['BULK_EXPORT_DIR']
     del wandb_config['CHARTS_DIR']
     del wandb_config['CLOUDY_PIXEL_PERCENTAGE']
     del wandb_config['COUNTRY_CODE']
-    del wandb_config['CWD_DIR']
     del wandb_config['DATA_DIR']
     del wandb_config['EVALUATION_DIR']
     del wandb_config['GEOJSON_FILE']
-    del wandb_config['GEOJSON_FOLDER']
     del wandb_config['HOME_DIR']
-    del wandb_config['MODEL_FILE']
-    del wandb_config['MODEL_FILE_EVALUATE_2018']
-    del wandb_config['MODEL_FILE_EVALUATE_2020']
-    del wandb_config['MODEL_NAME']
     del wandb_config['MODELS_DIR']
-    del wandb_config['NDWI_DIR']
     del wandb_config['NDWI_INPUT']
     del wandb_config['ORBIT_PASS']
     del wandb_config['OTSU_GAUSSIAN_KERNEL_SIZE']
-    del wandb_config['PREDICTIONS_FILE']
     del wandb_config['REGION_ADMIN_LEVEL']
     del wandb_config['REGION_NAME']
     del wandb_config['RESULTS_DIR']
@@ -666,7 +658,7 @@ def full_cycle(test_name, pre_2020=True):
     del wandb_config['TRAIN_CWD_DIR']
     del wandb_config['WATER_INDEX']
     del wandb_config['BASE_FILE_NAME']
-    wandb.init(project="deepaqua", config=wandb_config)
+    wandb.init(project="deepaqua", config=wandb_config, name=test_name)
     # wandb.init(project="sweeps", entity="deep-wetlands", config=config)
     config.update(wandb.config)
     print(json.dumps(config, indent=4))
@@ -737,7 +729,7 @@ def full_cycle(test_name, pre_2020=True):
 
     tiff_file = os.getenv('SINGLE_TEST_FILE')
     tiff_path = os.path.join(tiff_dir, tiff_file)
-    tiff_image = viz_utils.load_image(tiff_path,  ignore_nan=True, skimage_read=False)
+    tiff_image = viz_utils.load_image(tiff_path,  skip_nan=False, skimage_read=False)
     # tiff_image2 = viz_utils.load_image(tiff_path, ignore_nan=True)
 
     # Check is GPU is enabled

@@ -22,7 +22,10 @@ import csv
 
 def convert_area_name_to_color(area_name):
     area_name_to_color = {'hjalstaviken':'red', 'hornborgasjon':'blue', 'svartadalen':'green'}
-    return area_name_to_color[area_name]
+    if area_name in area_name_to_color:
+        return area_name_to_color[area_name]
+    else:
+        return 'red'
 
 
 def convert_annotated_data_to_png(dataset_name):
@@ -31,19 +34,19 @@ def convert_annotated_data_to_png(dataset_name):
     viz_utils.transform_ndwi_tiff_to_grayscale_png(annotations_dir, band)
 
 
-def rename_prediction_data(test_name, epoch_num, dataset_name):
-    results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
-    performance_dir = os.getenv('EVALUATION_DIR') + f'/{dataset_name}/{test_name}'
-    if not os.path.isdir(performance_dir):
-        Path(performance_dir).mkdir(parents=True, exist_ok=True)
-    # Create subfolder to calculate the performance of the current model
-    model_performance_dir = f'{performance_dir}/epoch_{epoch_num}_performance/'
-    if not os.path.isdir(model_performance_dir):
-        Path(model_performance_dir).mkdir(parents=True, exist_ok=True)
-
-    # performance_dir = '/tmp/descending_otsu_flacksjon_exported_images/'
-    predictions_dir = f'{results_dir}/epoch_{epoch_num}_exported_images/'
-    [shutil.copyfile(predictions_dir + f, model_performance_dir + f[:-11] + f'pred_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
+# def rename_prediction_data(test_name, epoch_num, dataset_name):
+#     results_dir = os.getenv('RESULTS_DIR') + f'/{dataset_name}/{test_name}'
+#     performance_dir = os.getenv('EVALUATION_DIR') + f'/{dataset_name}/{test_name}'
+#     if not os.path.isdir(performance_dir):
+#         Path(performance_dir).mkdir(parents=True, exist_ok=True)
+#     # Create subfolder to calculate the performance of the current model
+#     model_performance_dir = f'{performance_dir}/epoch_{epoch_num}_performance/'
+#     if not os.path.isdir(model_performance_dir):
+#         Path(model_performance_dir).mkdir(parents=True, exist_ok=True)
+#
+#     # performance_dir = '/tmp/descending_otsu_flacksjon_exported_images/'
+#     predictions_dir = f'{results_dir}/epoch_{epoch_num}_exported_images/'
+#     [shutil.copyfile(predictions_dir + f, model_performance_dir + f[:-11] + f'pred_bw.png') for f in os.listdir(predictions_dir) if not f.startswith('[0-9]+') and f.endswith('_pred_bw.png')]
 
 
 def copy_annotated_images(test_name, epoch_num, dataset_name):
@@ -414,10 +417,10 @@ def full_cycle(test_name, dataset_name, images_dict, model_paths, description):
     for tiff_file in tqdm.tqdm(images_dict) :
         if not tiff_file.endswith('.tif'):
             continue
-        year = int(tiff_file.split('_')[2].split('-')[0])
-        if year in [2018, 2019]:
+        year = int(tiff_file.split('_')[-3].split('-')[0])
+        if year < 2020:
             results, prediction_image = get_prediction_image(images_dict[tiff_file], tiff_file, model_2018, device, test_name, dataset_name, description)
-        elif year in [2020, 2021, 2022]:
+        else:
             results, prediction_image = get_prediction_image(images_dict[tiff_file], tiff_file, model_2020, device, test_name, dataset_name, description)
 
         results_list.append(results)
@@ -472,12 +475,13 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
         # else:
             # minValue = minValue_2020
             # maxValue = maxValue_2020
-        image = viz_utils.load_image(tiff_dir + '/' + tiff_file, ignore_nan=True)#, min_value=minValue, max_value=maxValue)
+        image = viz_utils.load_image(tiff_dir + '/' + tiff_file, skip_nan=False, nan_to_zero=False)#, min_value=minValue, max_value=maxValue)
         if image is None:
             incomplete_images += 1
         else:
             images_dict[tiff_file] = image
 
+    # image = viz_utils.load_image("C:/Users/ioia4268/Downloads/tav_2014-10-05_sar_VH.tif", skip_nan=False, nan_to_zero=False)
     print(f'There were a total of {incomplete_images} incomplete images')
     annotated_data_dict = {}
     if dataset_name in ['deepaqua_test_dataset_no_nov', 'deepaqua_test_dataset']:
@@ -485,11 +489,12 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
         annotated_files = [filename for filename in os.listdir(annotations_dir) if 'annotated_vh' in filename and filename.endswith('.png')]
         for annotated_file in annotated_files:
             # Open the annotated file
-            annotated_image = Image.open(annotations_dir + annotated_file).convert('L')
+            # annotated_image = Image.open(annotations_dir + annotated_file).convert('L')
+            annotated_image = viz_utils.load_image(annotations_dir + annotated_file, skip_nan=False, nan_to_zero=False)
 
-            new_width = (annotated_image.width // patch_size) * patch_size
-            new_height = (annotated_image.height // patch_size) * patch_size
-            annotated_image = annotated_image.crop((0, 0, new_width, new_height))
+            # new_width = (annotated_image.width // patch_size) * patch_size
+            # new_height = (annotated_image.height // patch_size) * patch_size
+            # annotated_image = annotated_image.crop((0, 0, new_width, new_height))
             annotated_data = np.array(annotated_image)
             array_min, array_max = np.nanmin(annotated_data), np.nanmax(annotated_data)
             annotated_data_dict[annotated_file] = ((annotated_data - array_min) / (array_max - array_min)).astype(int)
@@ -513,26 +518,27 @@ def main(test_name, dataset_name='deepaqua_test_dataset_no_nov', best_epoch=True
 
 def evaluation_pipeline(test_name, dataset_name, images_dict, annotated_data_dict, description, model_data):
     if description == 'best_epoch':
-        model_paths = (os.getenv('MODELS_DIR') + '/'\
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + '/best_model.pth',
-               os.getenv('MODELS_DIR') + '/' \
-               + model_data.loc[(model_data['test_name'] == test_name) &
-               (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + '/best_model.pth')
+        if not 'deepaqua_big' in test_name:
+            model_paths = (os.getenv('MODELS_DIR') + '/'\
+                   + model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2018_run_'))]['run_name'].values[-1] + '/best_model.pth',
+                   os.getenv('MODELS_DIR') + '/' \
+                   + model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2020_run_'))]['run_name'].values[-1] + '/best_model.pth')
+        else:
+            model_paths = ("C:/Users/ioia4268/data/models/big-2018.pth", "C:/Users/ioia4268/data/models/big-2020.pth")
     elif description == 'final_epoch':
         model_paths = (os.getenv('MODELS_DIR') + '/'\
-               + model_data.loc[(model_data['test_name'] == test_name) &
+               + model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2018_run_')) &
                (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + '/final_epoch.pth',
                os.getenv('MODELS_DIR') + '/' \
-               + model_data.loc[(model_data['test_name'] == test_name) &
+               + model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2020_run_')) &
                (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + '/final_epoch.pth')
     elif description[:6] == 'epoch_':
         epoch_num = int(description[6:])
         model_paths = (os.getenv('MODELS_DIR') + '/'\
-               + model_data.loc[(model_data['test_name'] == test_name) &
+               + model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2018_run_')) &
                (model_data['training_date'] == '2018-07-04')]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth',
                os.getenv('MODELS_DIR') + '/' \
-               + model_data.loc[(model_data['test_name'] == test_name) &
+               + model_data.loc[(model_data['test_name'] == test_name.replace('_run_', '_2020_run_')) &
                (model_data['training_date'] == '2020-06-23')]['run_name'].values[-1] + f'/epoch_{epoch_num}_model.pth')
     prediction_data = full_cycle(test_name, dataset_name, images_dict, model_paths, description)
     plot_results(test_name, dataset_name, description)

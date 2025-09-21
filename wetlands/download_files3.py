@@ -40,6 +40,33 @@ def download_ndwi_mask(region):
     file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_maskadsfasdfasf'
     task = export_image(new_image, file_name, region, folder)
 
+
+def download_optical(region):
+    product = 'COPERNICUS/S2'
+    shape_name = os.getenv("REGION_NAME")
+    cloud_pct = 1
+
+    image_collection = get_image_collection(product, region) \
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_pct))
+
+    image = aggregate_and_clip(image_collection, region)
+
+    ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
+
+    # Create NDWI mask
+    ndwi_threshold = ndwi.gte(0.0)
+    semi_ndwi_image = ndwi_threshold.neq(0.0)
+    semi_ndwi_mask = ndwi_threshold.eq(0.0)
+    new_image = semi_ndwi_mask.multiply(0.5).add(semi_ndwi_image.multiply(semi_ndwi_mask.neq(0.0)))
+    new_image = new_image.add(semi_ndwi_image)
+
+    folder = 'new'  # Change this to your file destination folder in Google drive
+    start_date = os.getenv("START_DATE")
+    aggregate_function = os.getenv("AGGREGATE_FUNCTION")
+    file_name = f'{shape_name}_{aggregate_function}_{start_date}_ndwi_maskadsfasdfasf'
+    task = export_image(new_image, file_name, region, folder)
+
+
 def get_area_of_interest(area_name):
 
     areas_of_interest = {
@@ -689,7 +716,7 @@ def get_matching_dates(area_of_interest):
 def main():
     load_dotenv()
     ee.Authenticate()
-    ee.Initialize()
+    ee.Initialize(project='ee-iiak-auth')
 
     country_code = os.getenv("COUNTRY_CODE")
     file_name = os.getenv("GEOJSON_FILE")
@@ -705,7 +732,7 @@ def main():
     # download_image('hrwi_binary', region)
     # download_image('dynamic_world_water_binary', region)
 
-    download_sar(region)
+    # download_sar(region)
     # download_sar('')
     # download_sar_vv_plus_vh(region)
 
