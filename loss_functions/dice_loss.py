@@ -29,17 +29,23 @@ class DiceLossSwin(nn.Module):
         output_tensor = torch.cat(tensor_list, dim=1)
         return output_tensor.float()
 
-    def _dice_loss(self, score, target):
+    def _dice_loss(self, score, target, batch_weights=None):
         target = target.float()
         smooth = 1e-5
-        intersect = torch.sum(score * target)
-        y_sum = torch.sum(target * target)
-        z_sum = torch.sum(score * score)
-        loss = (2 * intersect + smooth) / (z_sum + y_sum + smooth)
+        if batch_weights is None:
+            intersect = torch.sum(score * target)
+            y_sum = torch.sum(target * target)
+            z_sum = torch.sum(score * score)
+            loss = (2 * intersect + smooth) / (z_sum + y_sum + smooth)
+        else:
+            intersect = torch.sum(score * target, dim=(1,2))
+            y_sum = torch.sum(target * target, dim=(1,2))
+            z_sum = torch.sum(score * score, dim=(1,2))
+            loss = torch.mean(batch_weights*(2 * intersect + smooth) / (z_sum + y_sum + smooth))
         loss = 1 - loss
         return loss
 
-    def forward(self, inputs, target, weight=None, softmax=False):
+    def forward(self, inputs, target, weight=None, softmax=False, ignore_class_zero=False):
         if softmax:
             inputs = torch.softmax(inputs, dim=1)
         target = self._one_hot_encoder(target)
@@ -48,25 +54,37 @@ class DiceLossSwin(nn.Module):
         assert inputs.size() == target.size(), 'predict {} & target {} shape do not match'.format(inputs.size(), target.size())
         class_wise_dice = []
         loss = 0.0
-        for i in range(0, self.n_classes):
+        if ignore_class_zero:
+            start_i = 1
+        else:
+            start_i = 0
+        for i in range(start_i, self.n_classes):
             dice = self._dice_loss(inputs[:, i], target[:, i])
             class_wise_dice.append(1.0 - dice.item())
             loss += dice * weight[i]
-        return loss / self.n_classes
+        if ignore_class_zero:
+            return loss / (self.n_classes-1)
+        else:
+            return loss / self.n_classes
 
-    def comparison(self, input1, input2, weight=None, softmax=False):
+    def comparison(self, input1, input2, weight=None, softmax=False, ignore_class_zero=False, batch_weights=None):
         if softmax:
             input1 = torch.softmax(input1, dim=1)
             input2 = torch.softmax(input2, dim=1)
-        input1 = self._one_hot_encoder(input1)
-        input2 = self._one_hot_encoder(input2)
         if weight is None:
             weight = [1] * self.n_classes
         assert input1.size() == input2.size(), 'predict {} & target {} shape do not match'.format(input1.size(), input2.size())
         class_wise_dice = []
         loss = 0.0
-        for i in range(0, self.n_classes):
-            dice = self._dice_loss(input1[:, i], input2[:, i])
+        if ignore_class_zero:
+            start_i = 1
+        else:
+            start_i = 0
+        for i in range(start_i, self.n_classes):
+            dice = self._dice_loss(input1[:, i], input2[:, i], batch_weights)
             class_wise_dice.append(1.0 - dice.item())
             loss += dice * weight[i]
-        return loss / self.n_classes
+        if ignore_class_zero:
+            return loss / (self.n_classes-1)
+        else:
+            return loss / self.n_classes

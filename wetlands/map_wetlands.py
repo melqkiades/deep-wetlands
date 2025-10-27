@@ -1,7 +1,5 @@
 import json
 import os
-import time
-
 import numpy as np
 import rasterio as rio
 import torch
@@ -11,7 +9,6 @@ from rasterio.windows import Window
 import geopandas as gpd
 from osgeo import gdal
 from osgeo import ogr
-
 from model import model_factory
 from wetlands import utils, viz_utils, wandb_utils
 
@@ -40,24 +37,67 @@ def visualize_predicted_image(image, model, device):
     return pred_mask
 
 
-def predict_water_mask(config, sar_image, model, device):
-    patch_size = int(config['PATCH_SIZE'])
-    width = sar_image.shape[0] - sar_image.shape[0] % patch_size
-    height = sar_image.shape[1] - sar_image.shape[1] % patch_size
-    pred_mask = np.zeros(tuple((width, height)))
+# def predict_water_mask(config, sar_image, model, device):
+#     patch_size = int(config['PATCH_SIZE'])
+#     width = sar_image.shape[0] - sar_image.shape[0] % patch_size
+#     height = sar_image.shape[1] - sar_image.shape[1] % patch_size
+#     pred_mask = np.zeros(tuple((width, height)))
+#
+#     for h in range(0, height, patch_size):
+#         for w in range(0, width, patch_size):
+#             sar_image_crop = sar_image[w:w + patch_size, h:h + patch_size]
+#             sar_image_crop = sar_image_crop[None, :]
+#             binary_image = np.where(sar_image_crop.sum(2) > 0, 1, 0)
+#             sar_image_crop = torch.from_numpy(sar_image_crop.astype(np.float32)).to(device)[None, :]
+#
+#             pred = model(sar_image_crop).cpu().detach().numpy()
+#             pred = np.argmax(pred, axis=1).squeeze() * binary_image
+#             # pred = np.where(pred < 0.5, 0, 1)
+#             pred_mask[w:w + patch_size, h:h + patch_size] = pred
+#
+#     return pred_mask
 
+
+def predict_water_mask(config, sar_image, model, device, pad=True):
+    patch_size = int(config['PATCH_SIZE'])
+    width = sar_image.shape[0]
+    height = sar_image.shape[1]
+    if pad:
+        if width < patch_size:
+            difference_first_axis = patch_size - width
+            width = patch_size
+            sar_image = np.pad(sar_image, ((0, difference_first_axis), (0, 0)), 'constant', constant_values=1.)
+        else:
+            difference_first_axis = 0
+        if height < patch_size:
+            difference_second_axis = patch_size - height
+            height = patch_size
+            sar_image = np.pad(sar_image, ((0, 0), (0, difference_second_axis)), 'constant', constant_values=1.)
+        else:
+            difference_second_axis = 0
+
+    pred_mask = np.zeros(tuple((width, height)))
     for h in range(0, height, patch_size):
         for w in range(0, width, patch_size):
-            sar_image_crop = sar_image[w:w + patch_size, h:h + patch_size]
+            limits = [w, w + patch_size, h, h + patch_size]
+            if (w + patch_size > width):
+                limits = [width - patch_size, width] + limits[2:]
+            if (h + patch_size > height):
+                limits = limits[:2] + [height - patch_size, height]
+            sar_image_crop = sar_image[limits[0]:limits[1], limits[2]:limits[3]]
             sar_image_crop = sar_image_crop[None, :]
             binary_image = np.where(sar_image_crop.sum(2) > 0, 1, 0)
             sar_image_crop = torch.from_numpy(sar_image_crop.astype(np.float32)).to(device)[None, :]
 
             pred = model(sar_image_crop).cpu().detach().numpy()
             pred = np.argmax(pred, axis=1).squeeze() * binary_image
-            # pred = np.where(pred < 0.5, 0, 1)
-            pred_mask[w:w + patch_size, h:h + patch_size] = pred
-
+            pred = np.where(pred < 0.5, 0, 1)
+            pred_mask[limits[0]:limits[1], limits[2]:limits[3]] = pred
+    if pad:
+        if difference_first_axis > 0:
+            pred_mask = pred_mask[:-difference_first_axis]
+        if difference_second_axis > 0:
+            pred_mask = pred_mask[:,:-difference_second_axis]
     return pred_mask
 
 

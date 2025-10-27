@@ -150,7 +150,7 @@ def convert_rgb_tiff_to_png(tiff_file, out_file):
 
 
 def transform_ndwi_tiff_to_grayscale_png(config, band, dataset_name):
-    annotations_dir = config['TEMP_DATA_DIR'] + config['ANNOTATED_DATA_DIR'] + dataset_name
+    annotations_dir = config['DATA_DIR'] + config['ANNOTATED_DATA_DIR'] + dataset_name
     if not os.path.exists(annotations_dir):
         raise FileNotFoundError(f'The folder contaning the TIFF files does not exist: {annotations_dir}')
 
@@ -200,8 +200,8 @@ def load_image(dir_path, ignore_nan=False, skimage_read=True, min_value=None, ma
     numpy_image[numpy_image > max_value] = max_value
     numpy_image[numpy_image < min_value] = min_value
 
-    array_min, array_max = numpy.nanmin(numpy_image), numpy.nanmax(numpy_image)
-    normalized_array = (numpy_image - array_min) / (array_max - array_min)
+    # array_min, array_max = numpy.nanmin(numpy_image), numpy.nanmax(numpy_image)
+    normalized_array = (numpy_image - min_value) / (max_value - min_value)
     normalized_array[numpy.isnan(normalized_array)] = 0
 
     return normalized_array

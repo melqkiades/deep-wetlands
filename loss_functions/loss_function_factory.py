@@ -1,6 +1,5 @@
 from torch.nn import CrossEntropyLoss, BCELoss
-
-from loss_functions.dice_loss import DiceLoss, DiceLossSwin
+from loss_functions.dice_loss import DiceLoss, DiceLossSwin#, AbsDifLoss
 
 
 def create_loss_function(loss_function_name):
@@ -8,7 +7,8 @@ def create_loss_function(loss_function_name):
         'dice': DiceLoss(),
         'dice_swin': DiceLossSwin(2),
         'cross_entropy': CrossEntropyLoss(),
-        'binary_cross_entropy': BCELoss()
+        'binary_cross_entropy': BCELoss(),
+        #'abs_dif': AbsDifLoss(),
     }
 
     if loss_function_name not in loss_function_dict.keys():
