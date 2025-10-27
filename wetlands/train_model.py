@@ -539,7 +539,7 @@ def save_model(model, model_dir, model_file):
 
 def full_cycle(config, test_name):
     # Configure the wandb run
-    wandb.login(key='7f266f9a3115da69acae90e8eb024ea65859454e')
+    wandb.login(key='###')
     wandb_config = config.copy()
     training_method = config['TRAINING_METHOD']
     if training_method == 'supervised':
