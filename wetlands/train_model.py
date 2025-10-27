@@ -671,6 +671,13 @@ def full_cycle(config, test_name):
         save_model(model, os.path.join(outputs_dir, model_dir, run_name), f'final_epoch.pth')
         if training_method == 'unsupervised':
             save_model(prediction_model, os.path.join(outputs_dir, model_dir, run_name), 'final_epoch_prediction_model.pth')
+    if not os.path.isfile(outputs_dir + model_dir + 'model_info.csv'):
+        columns = pd.DataFrame.from_dict({'run_name': [], 'test_name': [],
+                                           'training_date': [], 'training_method': [],
+                                           'max_epochs': [], 'learning_rate': [],
+                                           'best_epoch': [],
+                                           'max_val_iou': [], 'final_epoch': []})
+        columns.to_csv(outputs_dir + model_dir + 'model_info.csv', index=False, na_rep='N/A')
     models_info = pd.read_csv(outputs_dir + model_dir + 'model_info.csv')
     new_info = pd.DataFrame.from_dict({'run_name':[run_name], 'test_name':[test_name],
                              'training_date': [str(training_date)], 'training_method': [training_method],

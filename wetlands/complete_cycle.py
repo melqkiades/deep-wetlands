@@ -39,10 +39,10 @@ def main():
             config = dotenv_values()
             config = config_update_casts(config)
             test_name = config['TEST_NAME']
-            num_trials = 5
+            num_trials = 3
             for i in range(num_trials):
                 train_model.full_cycle(config, test_name + '_run_' + str(i))
-                evaluate_performance.main(config, test_name + '_run_' + str(i), best_epoch=True, final_epoch=False)
+            evaluate_performance.full_cycle(config, test_name)
 
 
 if __name__ == '__main__':
