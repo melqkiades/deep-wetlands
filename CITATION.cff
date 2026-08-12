@@ -9,5 +9,6 @@ authors:
   orcid: "https://orcid.org/0009-0005-2726-3542"
 title: "AquaClsuter repository"
 version: 1.0.0
+doi: 10.5281/zenodo.1234
 date-released: 2026-08-12
 url: "https://github.com/melqkiades/deep-wetlands/tree/AquaCluster"
