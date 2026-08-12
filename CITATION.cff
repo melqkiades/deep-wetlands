@@ -1,0 +1,13 @@
+cff-version: 1.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Iakovidis"
+  given-names: "Ioannis"
+  orcid: "https://orcid.org/0000-0001-5830-0477"
+- family-names: "Peña"
+  given-names: "Francisco J."
+  orcid: "https://orcid.org/0009-0005-2726-3542"
+title: "AquaClsuter repository"
+version: 1.0.0
+date-released: 2026-08-12
+url: "https://github.com/melqkiades/deep-wetlands/tree/AquaCluster"
